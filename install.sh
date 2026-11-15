@@ -7,7 +7,9 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV="${VENV:-$DIR/.venv}"
 
 echo "== System packages"
-sudo apt-get install -y python3-venv curl
+# The emoji font: text pages from the intercom can carry emoji, and Chromium
+# draws them as empty boxes without one.
+sudo apt-get install -y python3-venv curl fonts-noto-color-emoji
 command -v chromium > /dev/null || command -v chromium-browser > /dev/null || sudo apt-get install -y chromium
 
 echo "== Python environment in $VENV"

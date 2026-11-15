@@ -44,6 +44,7 @@ token = ""                      # an operator access token: Settings > Access to
 ca_file = ""                    # for a panel with a self-signed certificate: a copy of its intercom-cert.pem
 verify_tls = true               # false skips the certificate check instead (home network only)
 buttons = true                  # false: receive only. Text pages still show; no Intercom tab, nothing can be played
+talk = true                     # push to talk on live announcements, with a microphone on this Pi
 zones = []                      # show text pages for these zone ids only, e.g. ["kitchen"]
 categories = []                 # show buttons from these categories only ("other" = uncategorized)
 

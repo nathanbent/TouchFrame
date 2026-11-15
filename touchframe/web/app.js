@@ -471,10 +471,92 @@ async function press(button, run) {
   }
 }
 
+// ---------- push to talk ----------
+// A live announcement's button: tap to talk, tap again to end. The
+// microphone goes to this Pi's server in short posts, and from there to the
+// intercom panel, so the panel's token never comes to the page.
+let mic = null;             // {id, ctx, stream, chunks, sending, started, ended}
+let talkSeen = 0;           // the last ended page whose reason was shown
+
+function micProblem() {
+  if (!window.isSecureContext) return "The microphone only works on this Pi's own screen (or over HTTPS)";
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.AudioWorkletNode) {
+    return "This browser can't use a microphone";
+  }
+  return null;
+}
+
+async function sendAudio(m) {
+  if (m.sending) return;
+  m.sending = true;
+  try {
+    while (m.chunks.length && !m.ended) {
+      const body = new Blob(m.chunks.splice(0));
+      const resp = await fetch("/api/intercom/talk/audio", { method: "POST", body });
+      if (!resp.ok) { stopTalking(false); break; }       // the page ended on the panel's side
+    }
+  } catch {
+    stopTalking(false);
+  } finally {
+    m.sending = false;
+  }
+}
+
+async function startTalking(button) {
+  if (mic) return;
+  const problem = micProblem();
+  if (problem) return toast(problem);
+  if (button.confirm && !await confirmPlay(`Talk on "${button.name}"?`)) return;
+  const m = mic = { id: button.id, ctx: new AudioContext(), stream: null, chunks: [], sending: false, ended: false };
+  drawIntercom();
+  try {
+    m.stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    await m.ctx.audioWorklet.addModule("mic-worklet.js");
+    if (m.ended) return;
+    await post(`/api/intercom/talk/start/${encodeURIComponent(button.id)}`);
+    if (m.ended) return post("/api/intercom/talk/end").catch(() => {});
+    m.started = true;
+    const node = new AudioWorkletNode(m.ctx, "mic-capture");
+    node.port.onmessage = e => {
+      m.chunks.push(e.data.pcm);
+      if (m.chunks.length >= 5) sendAudio(m);             // 100 ms a post
+    };
+    m.ctx.createMediaStreamSource(m.stream).connect(node);
+    await m.ctx.resume();
+  } catch (err) {
+    stopTalking(false);
+    toast(err.name === "NotAllowedError" || err.name === "NotFoundError"
+      ? "No microphone: plug one in, and allow this page to use it" : err.message);
+  }
+}
+
+// Let go of the microphone; with `tell`, also end the page on the panel.
+function stopTalking(tell) {
+  const m = mic;
+  if (!m) return;
+  mic = null;
+  m.ended = true;
+  if (m.stream) for (const t of m.stream.getTracks()) t.stop();
+  m.ctx.close().catch(() => {});
+  if (tell) post("/api/intercom/talk/end").catch(() => {});
+  drawIntercom();
+}
+
 function drawIntercom() {
   const ic = state && state.intercom;
   if (!ic || !ic.enabled || !settings.intercom_buttons) return;    // receive only: no buttons
   const runs = ic.runs;
+  const talk = ic.talk || { now: null, last: null };
+  // The panel ended the page (stopped there, or its groups were taken over).
+  if (mic && mic.started && !talk.now) stopTalking(false);
+  if (talk.last && talk.last.at_ms > talkSeen) {
+    if (talkSeen && talk.last.reason) toast(`Talking ended: ${talk.last.reason}`);
+    talkSeen = talk.last.at_ms;
+  } else if (!talkSeen) {
+    talkSeen = 1;
+  }
 
   const status = $("ic-status");
   const bad = !ic.connected ? (ic.error || "Connecting to the intercom...")
@@ -487,14 +569,29 @@ function drawIntercom() {
     g.name && h("h2", {}, g.name),
     h("div", { class: "tiles" }, g.buttons.map(b => {
       const run = runs.find(r => r.announcement === b.id);
+      if (b.live) {
+        // Talking here, on another screen (a run with no microphone of ours), or idle.
+        const mine = (mic && mic.id === b.id) || (talk.now && talk.now.announcement === b.id);
+        const phase = !mine ? null : talk.now && talk.now.phase === "live" ? "live" : "starting";
+        return h("button", {
+          class: `tile ${b.color || ""}${mine || run ? " busy" : ""}${phase === "live" ? " talking" : ""}`,
+          disabled: !ic.connected || !settings.intercom_talk || (mic && !mine),
+          onclick: () => (mine ? stopTalking(true) : run ? press(b, run) : startTalking(b)),
+        },
+          h("span", { class: "emoji" }, b.icon || "🎙️"),
+          h("span", { class: "name" }, b.name),
+          h("span", { class: "sub" }, !settings.intercom_talk ? "Talk from the intercom's own page"
+            : phase === "live" ? `Talking${DOT}tap to end` : phase ? "Starting..."
+            : run ? `Someone is talking${DOT}tap to stop` : "Tap to talk"));
+      }
       return h("button", {
         class: `tile ${b.color || ""}${run ? " busy" : ""}`,
-        disabled: b.live || !ic.connected,
+        disabled: !ic.connected,
         onclick: () => press(b, run),
       },
         b.icon && h("span", { class: "emoji" }, b.icon),
         h("span", { class: "name" }, b.name),
-        h("span", { class: "sub" }, b.live ? "Talk from the intercom's own page" : run ? `Playing${DOT}tap to stop` : ""));
+        h("span", { class: "sub" }, run ? `Playing${DOT}tap to stop` : ""));
     })),
   ]));
   if (ic.connected && !ic.groups.length) {

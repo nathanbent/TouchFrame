@@ -28,6 +28,7 @@ from .photos import Photos
 from .screen import Screen
 from .settings import Settings, SettingsError
 from .streams import Streams
+from .talk import Talk, TalkError
 from .warnings import Warnings
 from .weather import Weather
 
@@ -59,6 +60,7 @@ class App:
         self.alerts = Alerts(cfg, state, on_page=self.screen.wake)
         self.alerts.on_change = self.publish
         self.intercom = Intercom(cfg, self.alerts, self.publish)
+        self.talk = Talk(self.intercom, self.publish)
         self.multicast = Multicast(cfg, self.alerts, self.publish)
         self._subs = set()
         self._lock = threading.Lock()
@@ -99,7 +101,8 @@ class App:
 
     def snapshot(self):
         """Everything that changes by itself: the intercom, alerts and multicast groups."""
-        return {"intercom": self.intercom.snapshot(), "alerts": self.alerts.snapshot(),
+        return {"intercom": self.intercom.snapshot() | {"talk": self.talk.snapshot()},
+                "alerts": self.alerts.snapshot(),
                 "multicast": self.multicast.snapshot(), "lab": self.lab.snapshot(),
                 "warnings": self.warnings.snapshot(), "started": self.started,
                 "now_ms": int(time.time() * 1000)}
@@ -135,6 +138,8 @@ class App:
                 "units": weather["units"], "intercom": self.intercom.enabled,
                 "alerts": True, "lab": self.lab.enabled,
                 "intercom_buttons": self.intercom.enabled and self.cfg["intercom"]["buttons"],
+                "intercom_talk": self.intercom.enabled and self.cfg["intercom"]["buttons"]
+                and self.cfg["intercom"]["talk"],
                 # For the Settings tab.
                 "can_edit": can_edit, "network": self.network(), "started": self.started,
                 "hostname": socket.gethostname(), "version": self.version,
@@ -379,6 +384,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True})
             elif path.startswith("/api/intercom/") and not app.cfg["intercom"]["buttons"]:
                 self._json({"error": "this screen only receives"}, 403)
+            elif path.startswith("/api/intercom/talk/") and not app.cfg["intercom"]["talk"]:
+                self._json({"error": "push to talk is off on this screen ([intercom] talk)"}, 403)
+            elif path.startswith("/api/intercom/talk/start/"):
+                self._json(app.talk.start(urllib.parse.unquote(path.rsplit("/", 1)[1])), 201)
+            elif path == "/api/intercom/talk/audio":
+                app.talk.audio(raw)
+                self._json({"ok": True})
+            elif path == "/api/intercom/talk/end":
+                self._json(app.talk.end())
             elif path.startswith("/api/intercom/play/"):
                 self._json(app.intercom.play(urllib.parse.unquote(path.rsplit("/", 1)[1])), 201)
             elif path == "/api/intercom/stop":
@@ -387,7 +401,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"stopped": app.intercom.stop(path.rsplit("/", 1)[1])})
             else:
                 self._json({"error": "not found"}, 404)
-        except IntercomError as exc:
+        except (IntercomError, TalkError) as exc:
             self._json({"error": str(exc)}, exc.status)
         except (AdminError, SettingsError) as exc:
             self._json({"error": str(exc)}, 422)

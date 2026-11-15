@@ -121,7 +121,12 @@ What the tab does:
 
 The token stays in the server on the Pi. The page never sees it.
 
-**Push to talk is not here.** Live announcements are shown but can't be pressed: the panel only lets its own page open the microphone connection.
+**Push to talk.** With a microphone on the Pi (a USB one, say), a live announcement's button talks: tap it, wait for "Talking" (the chime plays first), speak, and tap again to end. What you said before the chime finished is kept and plays after it.
+
+- The microphone goes from the page to TouchFrame's server, and from there to the panel, so the token still stays off the page.
+- A page ends by itself if the screen stops sending audio for 10 seconds, or the panel stops it.
+- `kiosk.sh` starts Chromium so it can use the microphone without asking. In another browser, the microphone only works on the Pi's own address (`http://127.0.0.1:8660`) or over HTTPS.
+- `talk = false` under `[intercom]` turns it off; live buttons are then shown but can't be pressed.
 
 ## Alerts
 
@@ -156,9 +161,12 @@ curl -fsSL https://github.com/nathanbent/mcast-tools/releases/latest/download/mc
 
 On the panel, add the same group to a zone's **Text displays**. Anything else that sends real-time text to the group shows too, for example `mcast text send -g 239.192.3.1:11000 "Bus is here"`.
 
+- Text pages can carry emoji; `install.sh` installs the font Chromium needs to draw them (`fonts-noto-color-emoji`).
 - The Pi joins the group and reports to the sender over RTCP as `name` (its host name unless set), so it shows up as a receiver on the mcast monitor.
-- A channel carries only the words, so a page from one is headed with the sender's name, stays up for `hold_seconds`, and is an emergency only if it has one of `emergency_words`.
-- With both routes set, the same page arriving both ways is shown once, and the Alerts tab says it came "via panel" and "via multicast 239.192.3.1:11000". A page that lists only one of them didn't arrive by the other, which is the thing to look for when testing the network.
+- The intercom panel (with mcast-tools after 0.5.12 on both ends) sends each page with what it is: the announcement's name, its priority, and its end. Such a page is shown exactly as one from the panel's API is: headed with the name, an emergency when the announcement is, up until the announcement ends, and down at once when it's stopped. So a screen with only `[multicast]` set, and no link to the panel, loses nothing. If its end never arrives, a page comes down after ten minutes.
+- `mcast text send --page "Lunch" --priority high --hold 30 "Pizza in the hall"` sends such a page from anywhere.
+- Plain text on a channel carries only the words, so it is headed with the sender's name, stays up for `hold_seconds`, and is an emergency only if it has one of `emergency_words`.
+- With both routes set, the same page arriving both ways is shown once (matched by the page's id when it has one, else by its words), and the Alerts tab says it came "via panel" and "via multicast 239.192.3.1:11000". A page that lists only one of them didn't arrive by the other, which is the thing to look for when testing the network.
 - The Alerts tab shows each group, whether it's being listened to, and how many pages it has heard.
 
 ### Pictures over multicast
@@ -327,6 +335,7 @@ touchframe/
   weather.py    Open-Meteo forecast
   agenda.py     events from iCal links
   intercom.py   the link to the mcast intercom panel
+  talk.py       push to talk: the microphone, relayed to the panel
   multicast.py  text pages from multicast groups, by `mcast text recv`
   streams.py    the Streams tab, from mcast-tools' monitor
   warnings.py   National Weather Service alerts

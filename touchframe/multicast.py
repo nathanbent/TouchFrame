@@ -5,7 +5,9 @@ is a real multicast receiver: it joins the group, and reports to the sender
 over RTCP under its own name, which is how the intercom panel knows it heard
 a page. Nothing here goes through the panel's API.
 """
+import json
 import logging
+import re
 import shutil
 import socket
 import subprocess
@@ -19,6 +21,8 @@ from .alerts import now_ms
 log = logging.getLogger(__name__)
 
 GATHER = 0.6        # lines this close together are one page
+NO_END = 600        # a page whose end never comes is taken down after this many seconds
+PANEL_ID = re.compile(r"^(\d+)\.(\d+)$")     # the intercom panel's page ids: RUN.AT_MS
 
 
 class Group:
@@ -28,6 +32,7 @@ class Group:
         self.alerts = alerts
         self.on_change = on_change
         self.status = {"group": group, "listening": False, "error": None, "last_ms": None, "pages": 0}
+        self._holds = {}            # page id -> seconds it stays up once cleared
         self._lines = []
         self._sender = None
         self._timer = None
@@ -56,11 +61,27 @@ class Group:
                          sender or "Text page", lines,
                          until_ms=at + self.cfg["hold_seconds"] * 1000)
 
-    def _line(self, line):
-        # `mcast text recv` prints "SENDER: the text", one line at a time.
-        sender, sep, text = line.partition(": ")
-        if not sep:
-            sender, text = None, line
+    def _line(self, line, as_json):
+        if as_json:
+            # `mcast text recv --json`: an object per line; only "line" is a page's text.
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                return
+            if entry.get("type") == "page":
+                return self._page(entry)
+            if entry.get("type") == "clear":
+                return self._clear(entry)
+            if entry.get("type") != "line":
+                return
+            sender, text = entry.get("from"), str(entry.get("text", ""))
+        else:
+            # Older mcast prints "SENDER: the text", one line at a time.
+            sender, sep, text = line.partition(": ")
+            if not sep:
+                sender, text = None, line
+        if not text.strip():
+            return
         with self._lock:
             if self._timer:
                 self._timer.cancel()
@@ -72,6 +93,38 @@ class Group:
             self._timer = threading.Timer(GATHER, self._flush)
             self._timer.daemon = True
             self._timer.start()
+
+    def _key(self, page_id):
+        return f"multicast:{self.group}:{page_id}"
+
+    def _page(self, entry):
+        """A whole page, with what its sender says it is: its name, its priority,
+        and (later) its end. Nothing is guessed from timing or from its words."""
+        page_id, at = str(entry.get("id", "")), now_ms()
+        lines = [str(line) for line in entry.get("text", [])]
+        if not page_id or not lines:
+            return
+        if len(self._holds) > 200:
+            self._holds.clear()
+        self._holds[page_id] = max(0, int(entry.get("hold_s") or 0))
+        self.status.update(last_ms=at, pages=self.status["pages"] + 1)
+        # The panel's own pages have the same id by its API: one alert, heard twice.
+        panel = PANEL_ID.match(page_id)
+        priority = entry.get("priority")
+        self.alerts.show(self._key(page_id), f"multicast {self.group}",
+                         entry.get("name") or entry.get("from") or "Text page", lines,
+                         priority=priority if priority in ("high", "emergency") else "normal",
+                         until_ms=at + NO_END * 1000,
+                         same_as=f"panel:{panel[1]}:{panel[2]}" if panel else None)
+
+    def _clear(self, entry):
+        """A page's end: after its hold, or at once when it was stopped by hand."""
+        page_id, at = str(entry.get("id", "")), now_ms()
+        hold = self._holds.pop(page_id, None)
+        if hold is None:
+            return
+        stopped = bool(entry.get("now"))
+        self.alerts.end(self._key(page_id), at if stopped else at + hold * 1000, stopped=stopped)
 
     def _other(self, lines, sender):
         at = now_ms()
@@ -89,6 +142,11 @@ class Group:
                "-n", self.cfg["name"] or socket.gethostname()]
         if self.cfg["interface"]:
             cmd += ["-i", str(self.cfg["interface"])]
+        # Structured output, where this mcast has it: a sender's name with ": "
+        # in it, or text that looks like a name, can't then be mistaken.
+        as_json = _has_json(binary)
+        if as_json:
+            cmd.append("--json")
         while not self._stopping:
             try:
                 proc = self._proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -101,7 +159,7 @@ class Group:
             self._set(listening=True, error=None)
             for line in proc.stdout:
                 if line.strip():
-                    self._line(line.rstrip("\r\n"))
+                    self._line(line.rstrip("\r\n"), as_json)
             # It only ends when something is wrong: a bad group, no network yet.
             error = (proc.stderr.read() or "").strip().splitlines()
             proc.wait()
@@ -109,6 +167,16 @@ class Group:
             log.warning("multicast %s: %s; trying again in 10 s", self.group, error)
             self._set(listening=False, error=error)
             time.sleep(10)
+
+
+def _has_json(binary):
+    """Whether this `mcast text recv` can print JSON (mcast-tools after 0.5.12)."""
+    try:
+        out = subprocess.run([binary, "text", "recv", "--help"], capture_output=True, text=True,
+                             timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return "--json" in out
 
 
 IMAGES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}

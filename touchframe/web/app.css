@@ -250,6 +250,7 @@ nav {
 .tile.amber { --c: var(--cat-amber); } .tile.green { --c: var(--cat-green); }
 .tile.teal { --c: var(--cat-teal); } .tile.blue { --c: var(--cat-blue); }
 .tile.purple { --c: var(--cat-purple); }
+.tile.talking { --c: var(--cat-red); background: color-mix(in srgb, var(--c) 22%, var(--entry)); }
 .tile.busy { border-color: var(--now); box-shadow: 0 0 0 .12rem var(--now) inset; }
 .tile.busy::after {
   content: ""; position: absolute; top: .7rem; right: .7rem; width: .8rem; height: .8rem;

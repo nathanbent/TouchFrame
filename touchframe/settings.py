@@ -199,6 +199,8 @@ SECTIONS = [
             F("intercom.verify_tls", "Check the panel's certificate", "bool"),
             F("intercom.buttons", "Show the buttons", "bool",
               "Off makes this screen receive only: text pages still show, but nothing can be played from it."),
+            F("intercom.talk", "Push to talk", "bool",
+              "Live announcements talk from this screen, with a microphone on the Pi."),
             F("intercom.zones", "Only these zones' text pages", "list", "Zone ids. Empty shows every zone.", placeholder="kitchen"),
             F("intercom.categories", "Only these categories' buttons", "list",
               "Empty shows them all. \"other\" is the uncategorized ones.", placeholder="family"),

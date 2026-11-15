@@ -56,8 +56,11 @@ class Alerts:
         if self.on_change:
             self.on_change()
 
-    def show(self, key, source, name, text, priority="normal", until_ms=None, at_ms=None, image=None):
-        """Put an alert up (or update the one with this key). `source` says how it came."""
+    def show(self, key, source, name, text, priority="normal", until_ms=None, at_ms=None, image=None,
+             same_as=None):
+        """Put an alert up (or update the one with this key). `source` says how it came.
+        `same_as` is the key the same page has by another route, when its sender says
+        which page it is: the two are then one alert whatever their words."""
         text = [t for t in (line.strip() for line in text) if t]
         if not text:
             return
@@ -69,6 +72,15 @@ class Alerts:
             new = page is None
             if new and until_ms is not None and until_ms <= now:
                 return                  # already over (a stopped run's last word)
+            if page is None and same_as:
+                if same_as in self._closed:
+                    return              # tapped away already, by its other route
+                page = next((p for p in self._pages.values() if same_as in p["keys"]), None)
+                if page is not None:
+                    new = False
+                    page["keys"].append(key)
+                    if source not in page["sources"]:
+                        page["sources"].append(source)
             if page is None:
                 # The same words, just now, by another route: one alert, heard twice.
                 page = next((p for p in self._pages.values()
