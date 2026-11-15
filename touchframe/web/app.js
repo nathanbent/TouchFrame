@@ -794,11 +794,16 @@ async function loadCalendar() {
   drawCalendar();
 }
 
+let serverStarted = null;
+
 function listen() {
   const es = new EventSource("/api/events");
   es.addEventListener("state", e => {
     state = JSON.parse(e.data);
     state.at = Date.now();
+    // The server was restarted (an update, or config.toml changed): load the new page.
+    if (serverStarted && state.started !== serverStarted) return location.reload();
+    serverStarted = state.started;
     drawIntercom(); drawAlerts(); drawLab(); drawWarnings(); drawPage(); drawStatus();
   });
 }

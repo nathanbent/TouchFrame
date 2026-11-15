@@ -214,6 +214,14 @@ scp *.jpg nathan@<pi-address>:~/Pictures/touchframe/
 
 JPEG, PNG, WebP and GIF work. Photos are scaled down the first time they're shown, so big ones from a phone are fine. With no photos and `picture_of_the_day = false`, the dashboard just stays up. Settings are under `[screensaver]`.
 
+## Updating
+
+```bash
+cd ~/touchframe && git pull && sudo systemctl restart touchframe
+```
+
+The screen reloads by itself a few seconds after the service restarts, so an update or a change to `config.toml` shows without a reboot. (Re-run `./install.sh` instead when `requirements.txt` has changed.)
+
 ## Settings on the screen
 
 The gear in the corner opens a small panel: a brightness slider (with a backlight TouchFrame can set), the theme, *Show photos now*, *Send a test alert* and *Reload*, and the Pi's name, address and TouchFrame's version. Brightness and theme set here are remembered, and win over `config.toml`.

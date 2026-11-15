@@ -50,6 +50,9 @@ class App:
         self.hooks = Hooks(cfg, self.alerts)
         self.warnings = Warnings(cfg, state, self.alerts, self.publish)
         self.streams = Streams(cfg)
+        # Changes each time the server starts. A page that sees a new one reloads
+        # itself, so an update or a config change shows without touching the screen.
+        self.started = str(time.time_ns())
         # What was changed on the screen itself (brightness, theme) outlives a restart.
         self.device_file = state / "device.json"
         try:
@@ -89,7 +92,7 @@ class App:
         """Everything that changes by itself: the intercom, alerts and multicast groups."""
         return {"intercom": self.intercom.snapshot(), "alerts": self.alerts.snapshot(),
                 "multicast": self.multicast.snapshot(), "lab": self.lab.snapshot(),
-                "warnings": self.warnings.snapshot(),
+                "warnings": self.warnings.snapshot(), "started": self.started,
                 "now_ms": int(time.time() * 1000)}
 
     def subscribe(self):
