@@ -20,10 +20,22 @@ log = logging.getLogger(__name__)
 class Streams:
     def __init__(self, cfg):
         self.cfg = cfg["multicast"]
-        self.groups = list(dict.fromkeys(self.cfg["groups"] + self.cfg["watch"]))
+        self.groups = list(dict.fromkeys(self.cfg["groups"] + self.cfg["pictures"] + self.cfg["watch"]))
         self.enabled = bool(self.cfg["monitor"] and (self.groups or self.cfg["monitor_url"]))
         self.url = (self.cfg["monitor_url"] or f"http://127.0.0.1:{self.cfg['monitor_port']}").rstrip("/")
         self.error = None
+        self._proc = None
+        self._stopping = False
+
+    def stop(self):
+        """Stop the monitor: before the server restarts itself, so the port is free again."""
+        self._stopping = True
+        if self._proc and self._proc.poll() is None:
+            self._proc.terminate()
+            try:
+                self._proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                self._proc.kill()
 
     def _serve(self):
         binary = shutil.which(self.cfg["mcast"])
@@ -35,9 +47,9 @@ class Streams:
             cmd += ["--watch", g]
         if self.cfg["interface"]:
             cmd += ["--iface", str(self.cfg["interface"])]
-        while True:
+        while not self._stopping:
             try:
-                proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                proc = self._proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                                         text=True, errors="replace")
                 self.error = None
                 tail = (proc.stderr.read() or "").strip().splitlines()

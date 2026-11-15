@@ -20,7 +20,6 @@ class Screen:
     def __init__(self, cfg):
         self.cfg = cfg["screen"]
         self.dir = self._find()
-        self.percent = self.cfg["brightness"]   # may be changed from the screen's settings
         self._wake_until = 0.0
         self._level = None
         self._lock = threading.Lock()
@@ -47,7 +46,8 @@ class Screen:
     def apply(self):
         if self.dir is None:
             return
-        percent = min(self.cfg["dim_brightness"], self.percent) if self.dimmed() else self.percent
+        bright = self.cfg["brightness"]
+        percent = min(self.cfg["dim_brightness"], bright) if self.dimmed() else bright
         with self._lock:
             if percent == self._level:
                 return
@@ -60,10 +60,6 @@ class Screen:
             except (OSError, ValueError) as exc:
                 log.warning("backlight: %s (see README, Screen brightness)", exc)
                 self.dir = None
-
-    def set(self, percent):
-        self.percent = max(5, min(100, int(percent)))
-        self.apply()
 
     def wake(self):
         """Full brightness for a while: someone touched the screen, or a page went up."""

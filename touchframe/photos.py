@@ -42,7 +42,7 @@ class Photos:
         if self.cfg["enabled"] and self.cfg["picture_of_the_day"]:
             meta = self._potd()
             if meta:
-                caption = meta["caption"] + (f" · {meta['artist']}" if meta.get("artist") else "")
+                caption = meta["caption"] + (f" \u00b7 {meta['artist']}" if meta.get("artist") else "")
                 photos.append({"src": f"/photo-of-the-day?{meta['date']}", "caption": caption})
         return {"enabled": self.cfg["enabled"], "idle_minutes": self.cfg["idle_minutes"],
                 "seconds": self.cfg["seconds"], "clock": self.cfg["clock"], "photos": photos}

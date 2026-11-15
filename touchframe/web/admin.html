@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TouchFrame Settings</title>
+<link rel="preload" href="fonts/Karla-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Rubik-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<header>
+  <div class="brand">TouchFrame Settings</div>
+  <button id="signout" class="link" hidden>Sign out</button>
+</header>
+
+<form id="gate" class="gate card" hidden>
+  <h1>Enter the code from the screen</h1>
+  <p>On the TouchFrame screen, open Settings and choose <b>Set up from another device</b>. It shows a six-digit code.</p>
+  <label for="code">Code</label>
+  <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123 456" required>
+  <p class="hint">The code works once, for ten minutes. This device is then remembered for 30 days.</p>
+  <p class="error" id="gate-error" role="alert"></p>
+  <button class="primary">Continue</button>
+</form>
+
+<div id="app" class="app" hidden>
+  <nav id="sections" aria-label="Sections"></nav>
+  <main>
+    <form id="section" novalidate></form>
+    <div class="savebar">
+      <button class="primary" id="save" form="section">Save</button>
+      <span id="saved" role="status"></span>
+    </div>
+    <details class="danger">
+      <summary>Restart or reset</summary>
+      <p>Restarting takes a few seconds. Resetting forgets every change made here and on the screen, and goes back to what <code>config.toml</code> says.</p>
+      <button type="button" id="restart">Restart TouchFrame</button>
+      <button type="button" id="reset" class="warn">Reset to config.toml</button>
+    </details>
+  </main>
+</div>
+<script src="admin.js"></script>
+</body>
+</html>

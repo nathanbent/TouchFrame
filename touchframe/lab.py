@@ -104,7 +104,7 @@ class Zabbix:
             for p in problems:
                 if p["id"] not in self._known and p["severity"] >= self.cfg["alert_severity"]:
                     self.alerts.show(
-                        f"zabbix:{p['id']}", "Zabbix", f"Zabbix · {SEVERITIES[p['severity']]}",
+                        f"zabbix:{p['id']}", "Zabbix", f"Zabbix \u00b7 {SEVERITIES[p['severity']]}",
                         [p["host"], p["name"]],
                         priority="emergency" if p["severity"] == 5 else "high",
                         until_ms=int(time.time() * 1000) + self.cfg["alert_seconds"] * 1000)
@@ -148,5 +148,6 @@ class Lab:
     def snapshot(self):
         with self._lock:
             out = {s.name: self._state[id(s)] for s in self.problems}
-            out["tiles"] = [{"kind": s.kind, "name": s.name, **self._state[id(s)]} for s in self.tiles]
+            out["tiles"] = [{"kind": s.kind, "name": s.name, "noun": getattr(s, "noun", None),
+                             **self._state[id(s)]} for s in self.tiles]
             return out

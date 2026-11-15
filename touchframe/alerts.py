@@ -56,7 +56,7 @@ class Alerts:
         if self.on_change:
             self.on_change()
 
-    def show(self, key, source, name, text, priority="normal", until_ms=None, at_ms=None,
+    def show(self, key, source, name, text, priority="normal", until_ms=None, at_ms=None, image=None,
              same_as=None):
         """Put an alert up (or update the one with this key). `source` says how it came.
         `same_as` is the key the same page has by another route, when its sender says
@@ -93,7 +93,7 @@ class Alerts:
             if page is None:
                 page = {"id": self._next, "keys": [key], "sources": [source], "name": name,
                         "text": text, "priority": "normal", "at_ms": at_ms or now,
-                        "until_ms": None, "ended": False}
+                        "until_ms": None, "ended": False, "image": image}
                 self._next += 1
                 self._pages[page["id"]] = page
                 self._history.insert(0, {"id": page["id"], "at_ms": page["at_ms"], "seen": False})
@@ -113,6 +113,7 @@ class Alerts:
             for entry in self._history:
                 if entry["id"] == page["id"]:
                     entry.update(name=page["name"], text=text, priority=page["priority"],
+                                 image=page.get("image"),
                                  sources=list(page["sources"]))
             self._save()
         self._changed(new)
@@ -168,7 +169,7 @@ class Alerts:
                            key=lambda p: (p["priority"] != "emergency", -p["at_ms"]))
             return {
                 "pages": [{k: p[k] for k in ("id", "name", "text", "priority", "sources",
-                                             "at_ms", "until_ms", "sticky")} for p in pages],
+                                             "at_ms", "until_ms", "sticky", "image")} for p in pages],
                 "history": [dict(e) for e in self._history if "text" in e],
                 "unseen": sum(1 for e in self._history if not e["seen"]),
             }
