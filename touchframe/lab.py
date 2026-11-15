@@ -148,5 +148,6 @@ class Lab:
     def snapshot(self):
         with self._lock:
             out = {s.name: self._state[id(s)] for s in self.problems}
-            out["tiles"] = [{"kind": s.kind, "name": s.name, **self._state[id(s)]} for s in self.tiles]
+            out["tiles"] = [{"kind": s.kind, "name": s.name, "noun": getattr(s, "noun", None),
+                             **self._state[id(s)]} for s in self.tiles]
             return out

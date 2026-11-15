@@ -9,6 +9,7 @@ import http.cookiejar
 import json
 import ssl
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from .lab import fetch
@@ -158,7 +159,129 @@ class Plex:
         return {"streams": streams}
 
 
-KINDS = [Proxmox, AdGuard, UniFi, Plex]
+class Arr:
+    """Sonarr or Radarr: what's wanted and what's downloading. `key` is its API key
+    (Settings > General)."""
+
+    def __init__(self, raw):
+        self.cfg = _entry(raw, key="", interval_seconds=60)
+        self.name = self.cfg["name"] or self.kind.title()
+
+    def _get(self, path):
+        return fetch(self.cfg["url"].rstrip("/") + "/api/v3/" + path, self.cfg,
+                     headers={"X-Api-Key": self.cfg["key"]})
+
+    def poll(self):
+        return {"wanted": self._get("wanted/missing?pageSize=1")["totalRecords"],
+                "queued": self._get("queue?pageSize=1")["totalRecords"],
+                "total": len(self._get(self.library))}
+
+
+class Sonarr(Arr):
+    kind, library, noun = "sonarr", "series", "series"
+
+
+class Radarr(Arr):
+    kind, library, noun = "radarr", "movie", "movies"
+
+
+class Overseerr:
+    """Overseerr or Jellyseerr: requests waiting for a yes or no."""
+    kind = "overseerr"
+
+    def __init__(self, raw):
+        self.cfg = _entry(raw, key="", interval_seconds=60)
+        self.name = self.cfg["name"] or "Requests"
+
+    def poll(self):
+        count = fetch(self.cfg["url"].rstrip("/") + "/api/v1/request/count", self.cfg,
+                      headers={"X-Api-Key": self.cfg["key"]})
+        return {"pending": count.get("pending", 0), "approved": count.get("approved", 0),
+                "processing": count.get("processing", 0), "available": count.get("available", 0)}
+
+
+class Sabnzbd:
+    kind = "sabnzbd"
+
+    def __init__(self, raw):
+        self.cfg = _entry(raw, key="", interval_seconds=15)
+        self.name = self.cfg["name"] or "SABnzbd"
+
+    def poll(self):
+        query = urllib.parse.urlencode({"mode": "queue", "output": "json", "apikey": self.cfg["key"]})
+        answer = fetch(self.cfg["url"].rstrip("/") + "/api?" + query, self.cfg)
+        if "queue" not in answer:
+            raise RuntimeError(str(answer.get("error", "no queue in its answer")))
+        q = answer["queue"]
+        return {"down": float(q.get("kbpersec") or 0) * 1024, "queued": int(q.get("noofslots") or 0),
+                "left": q.get("timeleft") or "", "paused": bool(q.get("paused"))}
+
+
+class QBittorrent:
+    kind = "qbittorrent"
+
+    def __init__(self, raw):
+        self.cfg = _entry(raw, username="", password="", interval_seconds=15)
+        self.name = self.cfg["name"] or "qBittorrent"
+        self.base = self.cfg["url"].rstrip("/")
+        context = ssl.create_default_context()
+        if not self.cfg["verify_tls"]:
+            context = ssl._create_unverified_context()
+        self._opener = urllib.request.build_opener(
+            urllib.request.HTTPSHandler(context=context),
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        self._in = not self.cfg["username"]     # no login needed when it trusts this address
+
+    def _request(self, path, form=None):
+        req = urllib.request.Request(self.base + path, headers={"Referer": self.base})
+        if form is not None:
+            req.data = urllib.parse.urlencode(form).encode()
+        with self._opener.open(req, timeout=20) as resp:
+            return resp.read()
+
+    def poll(self):
+        try:
+            if not self._in:
+                answer = self._request("/api/v2/auth/login", {"username": self.cfg["username"],
+                                                              "password": self.cfg["password"]})
+                if answer.strip() != b"Ok.":
+                    raise RuntimeError("it refused the sign-in")
+                self._in = True
+            info = json.loads(self._request("/api/v2/transfer/info"))
+            torrents = json.loads(self._request("/api/v2/torrents/info"))
+        except urllib.error.HTTPError as exc:
+            self._in = not self.cfg["username"]
+            raise RuntimeError("it refused the sign-in" if exc.code in (401, 403)
+                               else f"it answered {exc.code}") from None
+        except (OSError, ValueError) as exc:
+            raise RuntimeError(str(getattr(exc, "reason", exc))) from None
+        seeding = ("uploading", "stalledUP", "forcedUP", "queuedUP", "checkingUP")
+        seeds = sum(1 for t in torrents if t.get("state") in seeding)
+        done = sum(1 for t in torrents if t.get("state") in ("pausedUP", "stoppedUP"))
+        return {"down": info.get("dl_info_speed", 0), "up": info.get("up_info_speed", 0),
+                "seeding": seeds, "leeching": len(torrents) - seeds - done}
+
+
+class Portainer:
+    """Containers running and stopped on one Portainer environment. `key` is an
+    access token (My account > Access tokens); `environment` its number (1 unless set)."""
+    kind = "portainer"
+
+    def __init__(self, raw):
+        self.cfg = _entry(raw, key="", environment=1, interval_seconds=60)
+        self.name = self.cfg["name"] or "Docker"
+
+    def poll(self):
+        containers = fetch(f"{self.cfg['url'].rstrip('/')}/api/endpoints/{self.cfg['environment']}"
+                           "/docker/containers/json?all=1", self.cfg,
+                           headers={"X-API-Key": self.cfg["key"]})
+        running = sum(1 for c in containers if c.get("State") == "running")
+        unhealthy = [c["Names"][0].lstrip("/") for c in containers
+                     if "unhealthy" in str(c.get("Status", "")) and c.get("Names")]
+        return {"running": running, "stopped": len(containers) - running, "unhealthy": unhealthy[:3]}
+
+
+KINDS = [Proxmox, AdGuard, UniFi, Plex, Sonarr, Radarr, Overseerr, Sabnzbd, QBittorrent, Portainer]
 
 
 def load(cfg):

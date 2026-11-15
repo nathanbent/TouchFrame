@@ -115,6 +115,23 @@ On the panel, add the same group to a zone's **Text displays**. Anything else th
 - With both routes set, the same page arriving both ways is shown once, and the Alerts tab says it came "via panel · via multicast 239.192.3.1:11000". A page that lists only one of them didn't arrive by the other, which is the thing to look for when testing the network.
 - The Alerts tab shows each group, whether it's being listened to, and how many pages it has heard.
 
+### Pictures over multicast
+
+![A picture sent over multicast](docs/picture.png)
+
+```toml
+[multicast]
+pictures = ["239.192.4.1:12000"]
+```
+
+A picture sent to one of these groups takes over the screen like a text alert, for `picture_seconds`, and is kept in the Alerts tab with a thumbnail (tap it to see the picture again). A snapshot from a door camera, say:
+
+```bash
+mcast file send -g 239.192.4.1:12000 --no-sap door.jpg
+```
+
+They're received by `mcast file recv`. JPEG, PNG, WebP and GIF are shown; any other file is only noted in the Alerts tab. The last 40 files are kept, in `~/.local/state/touchframe/received`, and files over 50 MB are refused.
+
 ### Streams
 
 ![The Streams tab](docs/streams.png)
@@ -195,6 +212,12 @@ The ones in double brackets can be repeated, for two AdGuards or two Proxmox clu
 - **AdGuard Home:** DNS queries, the share blocked, and the average answer time, with a warning if protection is switched off.
 - **UniFi:** Wi-Fi and wired clients, access points, and whether the internet is up. Sign in with an API key (UniFi OS consoles), or the `username` and `password` of a local view-only user.
 - **Plex:** what's playing, for whom, and how far in. The token is your `X-Plex-Token`.
+- **Sonarr** and **Radarr** (`[[sonarr]]`, `[[radarr]]`, with `url` and `key`): how many are wanted and queued, and the size of the library.
+- **Overseerr** or Jellyseerr (`[[overseerr]]`, `url` and `key`): requests pending and processing, with a warning while any wait for an answer.
+- **SABnzbd** (`[[sabnzbd]]`, `url` and `key`) and **qBittorrent** (`[[qbittorrent]]`, `url`, `username`, `password`): download speed and what's in the queue.
+- **Portainer** (`[[portainer]]`, `url`, `key`, `environment`): containers running and stopped, naming any that are unhealthy.
+
+`config.example.toml` has each of these with where to find its key.
 - **Prometheus:** how many scrape targets are up, and a list of the ones that aren't.
 - **Zabbix:** current problems by severity, worst first, with the host and how long each has been going. Acknowledged ones are dimmed. It needs Zabbix 6.4 or later and an API token (Users → API tokens); a read-only user is enough. Problems on disabled hosts and triggers are left out, as on Zabbix's own dashboard.
 - The tab's badge counts High and Disaster problems.

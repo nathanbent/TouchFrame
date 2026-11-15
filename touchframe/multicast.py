@@ -11,6 +11,8 @@ import socket
 import subprocess
 import threading
 import time
+import urllib.parse
+from pathlib import Path
 
 from .alerts import now_ms
 
@@ -101,9 +103,76 @@ class Group:
             time.sleep(10)
 
 
+IMAGES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+KEEP_FILES = 40
+
+
+class PictureGroup(Group):
+    """Files sent to a group with `mcast file send`. A picture goes up on the
+    screen as an alert; anything else is noted in the Alerts tab."""
+
+    def __init__(self, group, cfg, alerts, on_change, folder):
+        super().__init__(group, cfg, alerts, on_change)
+        self.folder = folder
+        self.status["pictures"] = True
+
+    def _got(self, path):
+        at = now_ms()
+        self.status.update(last_ms=at, pages=self.status["pages"] + 1)
+        picture = path.suffix.lower() in IMAGES
+        self.alerts.show(f"file:{self.group}:{at}", f"multicast {self.group}",
+                         "Picture" if picture else "File received", [path.name],
+                         until_ms=at + self.cfg["picture_seconds"] * 1000,
+                         image="/received/" + urllib.parse.quote(path.name) if picture else None)
+        # Keep the folder from growing for ever.
+        files = sorted(self.folder.iterdir(), key=lambda f: f.stat().st_mtime, reverse=True)
+        for old in files[KEEP_FILES:]:
+            old.unlink(missing_ok=True)
+
+    def run(self):
+        binary = shutil.which(self.cfg["mcast"])
+        if not binary:
+            return self._set(error=f"the {self.cfg['mcast']} command isn't installed")
+        cmd = [binary, "file", "recv", "-g", self.group, "-o", str(self.folder),
+               "-n", self.cfg["name"] or socket.gethostname(), "--max-size", "50"]
+        if self.cfg["interface"]:
+            cmd += ["-i", str(self.cfg["interface"])]
+        while True:
+            error = None
+            try:
+                proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                        text=True, errors="replace", bufsize=1)
+                log.info("multicast: listening for pictures on %s", self.group)
+                self._set(listening=True, error=None)
+                for line in proc.stderr:
+                    line = line.strip()
+                    # "got NAME (SIZE) in 1.0s, from N packets (M needed), checksum OK; saved PATH"
+                    if line.startswith("got ") and "; saved " in line:
+                        self._got(Path(line.rsplit("; saved ", 1)[1]))
+                    elif line:
+                        error = line
+                proc.wait()
+            except OSError as exc:
+                error = str(exc)
+            log.warning("multicast %s: %s; trying again in 10 s", self.group, error or "stopped")
+            self._set(listening=False, error=error or "mcast file recv stopped")
+            time.sleep(10)
+
+
 class Multicast:
     def __init__(self, cfg, alerts, on_change):
+        self.folder = cfg["app"]["state_dir"] / "received"
+        self.folder.mkdir(parents=True, exist_ok=True)
         self.groups = [Group(g, cfg["multicast"], alerts, on_change) for g in cfg["multicast"]["groups"]]
+        self.groups += [PictureGroup(g, cfg["multicast"], alerts, on_change, self.folder)
+                        for g in cfg["multicast"]["pictures"]]
+
+    def file(self, name):
+        """A received picture, for the page to show."""
+        path = (self.folder / name).resolve()
+        if path.parent != self.folder.resolve() or path.suffix.lower() not in IMAGES:
+            return None
+        return path
 
     def start(self):
         for g in self.groups:

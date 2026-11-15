@@ -335,3 +335,12 @@ nav .playing:not([hidden]) + .status { display: none; }
 .set-info { font-size: .85rem; color: var(--muted); }
 #settings .detail-box { width: 34rem; }
 #settings .pill { padding: .7rem 1rem; font-size: 1rem; }
+
+/* ---------- pictures over multicast ---------- */
+.page.pictured { padding: .6rem 1rem; gap: .3rem; }
+.page-image { flex: 1; min-height: 0; width: 100%; background: center / contain no-repeat; }
+.page.pictured .page-text { flex: none; font-weight: 600; color: var(--muted); }
+.al-thumb { flex: none; order: 2; margin-left: auto; width: 5rem; height: 3.4rem; object-fit: cover; border-radius: .4rem; cursor: pointer; }
+.detail-image { display: block; max-width: 100%; max-height: 68vh; margin: auto; border-radius: .5rem; }
+.stat b { white-space: nowrap; }
+.ltile.sabnzbd .stat b, .ltile.qbittorrent .stat b { font-size: 1.15rem; line-height: 1.5; }
