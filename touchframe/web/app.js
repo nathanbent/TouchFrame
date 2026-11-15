@@ -244,8 +244,10 @@ async function press(button, run) {
 
 function drawIntercom() {
   const ic = intercom;
-  $("tab-intercom").hidden = !(ic && ic.enabled);
   if (!ic || !ic.enabled) return;
+  drawStatus();
+  if (!settings.intercom_buttons) return drawPage();     // receive only: text pages, no buttons
+  $("tab-intercom").hidden = false;
   const runs = ic.runs;
 
   const status = $("ic-status");

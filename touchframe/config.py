@@ -30,6 +30,7 @@ DEFAULTS = {
         "token": "",                # an operator access token
         "ca_file": "",              # the panel's certificate, when it's self-signed
         "verify_tls": True,
+        "buttons": True,            # False: receive only (text pages, no buttons)
         "zones": [],                # show text pages for these zones only ([] = all)
         "categories": [],           # show buttons in these categories only ([] = all)
     },

@@ -61,6 +61,7 @@ What the tab does:
 - **Buttons** follow the panel's own groups, order, colours and icons, and change when the panel is edited. Tap one to play it; tap it again, or *Stop* in the bottom bar, to stop it. Announcements set to ask first, and emergency ones, ask before playing.
 - **Text pages** take over the whole screen in large type as the playlist reaches them, whichever tab is showing, and come down when the panel says so. Tap one to close it early. `zones = ["kitchen"]` shows only pages sent to those zones.
 - **What's playing** is in the bottom bar on every tab.
+- `buttons = false` makes the screen **receive only**: text pages still take it over, but there is no Intercom tab and nothing can be played or stopped from it.
 - `categories = ["family"]` shows only those groups' buttons. To make sure this screen can only *play* some announcements, limit the token to those categories on the panel.
 
 The token stays in the server on the Pi. The page never sees it.

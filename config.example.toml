@@ -32,6 +32,7 @@ url = ""                        # "http://127.0.0.1:8651" on the same Pi, or "ht
 token = ""                      # an operator access token: Settings > Access tokens on the panel
 ca_file = ""                    # for a panel with a self-signed certificate: a copy of its intercom-cert.pem
 verify_tls = true               # false skips the certificate check instead (home network only)
+buttons = true                  # false: receive only. Text pages still show; no Intercom tab, nothing can be played
 zones = []                      # show text pages for these zone ids only, e.g. ["kitchen"]
 categories = []                 # show buttons from these categories only ("other" = uncategorized)
 

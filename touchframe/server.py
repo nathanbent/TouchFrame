@@ -32,7 +32,8 @@ class App:
         app, weather = self.cfg["app"], self.cfg["weather"]
         return {"theme": app["theme"], "clock": app["clock"],
                 "idle_home_seconds": app["idle_home_seconds"],
-                "units": weather["units"], "intercom": self.intercom.enabled}
+                "units": weather["units"], "intercom": self.intercom.enabled,
+                "intercom_buttons": self.intercom.enabled and self.cfg["intercom"]["buttons"]}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -127,6 +128,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/screen/wake":
                 app.screen.wake()
                 self._json({"ok": True})
+            elif path.startswith("/api/intercom/") and not app.cfg["intercom"]["buttons"]:
+                self._json({"error": "this screen only receives"}, 403)
             elif path.startswith("/api/intercom/play/"):
                 self._json(app.intercom.play(urllib.parse.unquote(path.rsplit("/", 1)[1])), 201)
             elif path == "/api/intercom/stop":
