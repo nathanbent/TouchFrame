@@ -212,3 +212,30 @@ nav > button { position: relative; }
 }
 .saver-caption { font-size: .85rem; opacity: .9; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .saver-clock { flex: none; font-size: 2.6rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+
+/* ---------- lab ---------- */
+:root { --sev-0: #7b8794; --sev-1: #5aa9ff; --sev-2: #e0b23c; --sev-3: #e8873a; --sev-4: #e2574c; --sev-5: #d1263b; }
+#lab { gap: .7rem; }
+.lab-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .5rem; }
+.lab-col.wide { flex: 1.6; }
+.lab-head { flex: none; min-height: 3.6rem; }
+.lab-head h2 { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .25rem; }
+.lab-head .big { font-size: 1.7rem; font-weight: 700; line-height: 1.1; }
+.lab-head .big .muted { font-size: 1.1rem; font-weight: 600; }
+.good { color: var(--c-green); }
+.lab-error { color: var(--storm); font-size: .8rem; margin-top: .2rem; }
+.chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+.chip { padding: .2rem .6rem; border-radius: 1rem; font-size: .85rem; font-weight: 700; color: #fff; background: var(--sev-0); white-space: nowrap; }
+.chip.sev-1 { background: var(--sev-1); } .chip.sev-2 { background: var(--sev-2); color: #201800; }
+.chip.sev-3 { background: var(--sev-3); } .chip.sev-4 { background: var(--sev-4); } .chip.sev-5 { background: var(--sev-5); }
+.lab-list { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: .3rem; }
+.lab-row { display: flex; align-items: center; gap: .6rem; padding: .4rem .7rem; border-radius: .6rem; background: var(--surface); border-left: .3rem solid var(--sev-0); }
+.lab-row.sev-1 { border-left-color: var(--sev-1); } .lab-row.sev-2 { border-left-color: var(--sev-2); }
+.lab-row.sev-3 { border-left-color: var(--sev-3); } .lab-row.sev-4 { border-left-color: var(--sev-4); }
+.lab-row.sev-5 { border-left-color: var(--sev-5); }
+.lab-row.acked { opacity: .6; }
+.lab-main { flex: 1; min-width: 0; }
+.lab-main b, .lab-sub { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lab-sub { font-size: .85rem; color: var(--muted); }
+.lab-age { flex: none; color: var(--muted); font-size: .85rem; }
+nav > button { min-width: 5.4rem; }

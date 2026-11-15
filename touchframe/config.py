@@ -9,6 +9,7 @@ DEFAULTS = {
         "state_dir": "~/.local/state/touchframe",
         "theme": "dark",            # "dark", "light" or "auto" (light by day, dark at night)
         "clock": "12h",             # or "24h"
+        "remote_view": False,       # True lets other machines open the dashboard (no sign-in)
         "idle_home_seconds": 120,   # go back to the Home tab after this long untouched (0 = never)
     },
     # [weather] and [calendar] take the same settings as InkFrame's.
@@ -44,6 +45,28 @@ DEFAULTS = {
     "alerts": {
         "emergency_stays": True,    # an emergency page stays up until it's tapped
         "emergency_words": [],      # pages with any of these words are emergencies
+    },
+    "prometheus": {
+        "url": "",                  # e.g. "http://10.0.30.10:9090"; "" = off
+        "token": "",
+        "verify_tls": True,
+        "ignore_jobs": [],          # jobs left out of the counts
+        "interval_seconds": 60,
+    },
+    "zabbix": {
+        "url": "",                  # e.g. "http://10.0.30.20:180"; "" = off
+        "token": "",                # an API token (Users > API tokens)
+        "verify_tls": True,
+        "min_severity": 2,          # 2 Warning, 3 Average, 4 High, 5 Disaster
+        "alert_severity": 0,        # new problems this severe go up as alerts (0 = never)
+        "alert_seconds": 60,
+        "interval_seconds": 60,
+    },
+    "webhooks": {
+        "token": "",                # "" = off
+        "hold_seconds": 60,         # how long an alert stays up unless it says
+        "emergency_severities": ["disaster"],
+        "high_severities": ["critical", "high", "error"],
     },
     "screensaver": {
         "enabled": True,

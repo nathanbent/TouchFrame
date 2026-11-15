@@ -16,6 +16,9 @@ function h(tag, props, ...kids) {
   return el;
 }
 
+/** Replace an element's children, leaving out the ones that aren't there. */
+const put = (el, ...kids) => el.replaceChildren(...kids.flat().filter(k => k !== null && k !== undefined && k !== false && k !== ""));
+
 let settings = { theme: "dark", clock: "12h", idle_home_seconds: 120, intercom: false, alerts: false };
 let weather = null;
 let calendar = null;
@@ -256,7 +259,7 @@ function drawIntercom() {
   status.className = "ic-status" + (bad && ic.error ? " bad" : "");
   $("stop-all").hidden = !runs.length;
 
-  $("ic-groups").replaceChildren(...ic.groups.flatMap(g => [
+  put($("ic-groups"), ic.groups.flatMap(g => [
     g.name && h("h2", {}, g.name),
     h("div", { class: "tiles" }, g.buttons.map(b => {
       const run = runs.find(r => r.announcement === b.id);
@@ -358,6 +361,63 @@ function markSeen() {
   setTimeout(() => { marking = false; post("/api/alerts/seen").catch(() => {}); }, 4000);
 }
 
+// ---------- lab ----------
+const SEVERITIES = ["Not classified", "Information", "Warning", "Average", "High", "Disaster"];
+
+function age(ms) {
+  const mins = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (mins < 60) return `${mins}m`;
+  if (mins < 48 * 60) return `${Math.round(mins / 60)}h`;
+  return `${Math.round(mins / 1440)}d`;
+}
+
+function drawLab() {
+  $("tab-lab").hidden = !settings.lab;
+  if (!state || !settings.lab) return;
+  const prom = state.lab.prometheus, zbx = state.lab.zabbix;
+  let worst = 0;
+
+  $("lab-prom").hidden = !prom;
+  if (prom) {
+    const known = prom.total !== undefined;
+    put($("lab-prom-head"),
+      h("h2", {}, "Prometheus"),
+      known && h("div", { class: "big" }, h("span", { class: prom.down.length ? "" : "good" }, String(prom.up)), h("span", { class: "muted" }, ` / ${prom.total} up`)),
+      prom.error && h("div", { class: "lab-error" }, prom.ok === false ? `Not answering: ${prom.error}` : ""));
+    $("lab-prom-list").replaceChildren(...(known ? prom.down : []).map(t =>
+      h("div", { class: "lab-row sev-4" },
+        h("div", { class: "lab-main" }, h("b", {}, t.instance), h("div", { class: "lab-sub" }, t.job)))));
+    if (known && !prom.down.length) $("lab-prom-list").append(h("div", { class: "empty" }, "Every target is up"));
+    if (known && prom.total - prom.up > 0) worst = Math.max(worst, 3);
+  }
+
+  $("lab-zbx").hidden = !zbx;
+  if (zbx) {
+    const known = zbx.counts !== undefined;
+    put($("lab-zbx-head"),
+      h("h2", {}, "Zabbix problems"),
+      known && h("div", { class: "chips" }, [5, 4, 3, 2, 1, 0].filter(s => zbx.counts[s]).map(s =>
+        h("span", { class: `chip sev-${s}` }, `${zbx.counts[s]} ${SEVERITIES[s]}`))),
+      zbx.error && h("div", { class: "lab-error" }, `Not answering: ${zbx.error}`));
+    $("lab-zbx-list").replaceChildren(...(known ? zbx.problems : []).map(p =>
+      h("div", { class: `lab-row sev-${p.severity}${p.acknowledged ? " acked" : ""}` },
+        h("div", { class: "lab-main" }, h("b", {}, p.host), h("div", { class: "lab-sub" }, p.name)),
+        h("div", { class: "lab-age" }, age(p.at_ms)))));
+    if (known && !zbx.total) $("lab-zbx-list").append(h("div", { class: "empty" }, "No problems"));
+    if (known && zbx.total > zbx.problems.length) {
+      $("lab-zbx-list").append(h("div", { class: "empty" }, `and ${zbx.total - zbx.problems.length} more`));
+    }
+    if (known) worst = Math.max(worst, ...[5, 4].filter(s => zbx.counts[s]));
+  }
+
+  // The tab is marked while something is High or Disaster.
+  const badge = $("lab-badge");
+  const serious = zbx && zbx.counts ? zbx.counts[5] + zbx.counts[4] : 0;
+  badge.hidden = !serious;
+  badge.textContent = serious;
+  badge.className = `badge sev-${worst}`;
+}
+
 // ---------- screensaver ----------
 let saver = null, saverTimer = null, saverIdle = null, saverOrder = [], saverFront = false;
 
@@ -414,6 +474,7 @@ function drawStatus() {
   if (calendar && calendar.stale) notes.push("Calendar offline");
   if (state && state.intercom.enabled && !state.intercom.connected) notes.push("Intercom offline");
   if (state && state.multicast.some(g => !g.listening)) notes.push("Multicast off");
+  if (state && Object.values(state.lab).some(s => s.ok === false)) notes.push("Lab offline");
   const where = weather && weather.location;
   $("status").textContent = notes.join(" · ") || where || "";
 }
@@ -475,7 +536,7 @@ function listen() {
   es.addEventListener("state", e => {
     state = JSON.parse(e.data);
     state.at = Date.now();
-    drawIntercom(); drawAlerts(); drawPage(); drawStatus();
+    drawIntercom(); drawAlerts(); drawLab(); drawPage(); drawStatus();
   });
 }
 

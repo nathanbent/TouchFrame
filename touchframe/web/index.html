@@ -33,6 +33,17 @@
     <div class="al-list" id="al-list"></div>
   </section>
 
+  <section id="lab" class="view">
+    <div class="lab-col" id="lab-prom" hidden>
+      <div class="lab-head" id="lab-prom-head"></div>
+      <div class="lab-list" id="lab-prom-list"></div>
+    </div>
+    <div class="lab-col wide" id="lab-zbx" hidden>
+      <div class="lab-head" id="lab-zbx-head"></div>
+      <div class="lab-list" id="lab-zbx-list"></div>
+    </div>
+  </section>
+
   <section id="intercom" class="view">
     <div class="ic-head">
       <div class="ic-status" id="ic-status"></div>
@@ -46,6 +57,7 @@
   <button data-view="home" class="active">Home</button>
   <button data-view="calendar">Calendar</button>
   <button data-view="alerts" id="tab-alerts" hidden>Alerts<span class="badge" id="badge" hidden></span></button>
+  <button data-view="lab" id="tab-lab" hidden>Lab<span class="badge" id="lab-badge" hidden></span></button>
   <button data-view="intercom" id="tab-intercom" hidden>Intercom</button>
   <div class="playing" id="playing" hidden></div>
   <div class="status" id="status"></div>

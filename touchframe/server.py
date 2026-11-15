@@ -1,5 +1,7 @@
 """The web server: the page, and a small JSON API behind it."""
 import argparse
+import hmac
+import ipaddress
 import json
 import logging
 import mimetypes
@@ -13,7 +15,9 @@ from pathlib import Path
 from . import config
 from .agenda import Agenda
 from .alerts import Alerts
+from .hooks import HookError, Hooks
 from .intercom import Intercom, IntercomError
+from .lab import Lab
 from .multicast import Multicast
 from .photos import Photos
 from .screen import Screen
@@ -36,13 +40,16 @@ class App:
         self.alerts.on_change = self.publish
         self.intercom = Intercom(cfg, self.alerts, self.publish)
         self.multicast = Multicast(cfg, self.alerts, self.publish)
+        self.lab = Lab(cfg, self.alerts, self.publish)
+        self.hooks = Hooks(cfg, self.alerts)
         self._subs = set()
         self._lock = threading.Lock()
 
     def snapshot(self):
         """Everything that changes by itself: the intercom, alerts and multicast groups."""
         return {"intercom": self.intercom.snapshot(), "alerts": self.alerts.snapshot(),
-                "multicast": self.multicast.snapshot(), "now_ms": int(time.time() * 1000)}
+                "multicast": self.multicast.snapshot(), "lab": self.lab.snapshot(),
+                "now_ms": int(time.time() * 1000)}
 
     def subscribe(self):
         q = queue.Queue(maxsize=50)
@@ -68,7 +75,7 @@ class App:
         return {"theme": app["theme"], "clock": app["clock"],
                 "idle_home_seconds": app["idle_home_seconds"],
                 "units": weather["units"], "intercom": self.intercom.enabled,
-                "alerts": self.intercom.enabled or bool(self.multicast.groups),
+                "alerts": True, "lab": self.lab.enabled,
                 "intercom_buttons": self.intercom.enabled and self.cfg["intercom"]["buttons"]}
 
 
@@ -132,9 +139,37 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             app.unsubscribe(q)
 
+    def _allowed(self, path):
+        """Other machines may only post webhooks, unless [app] remote_view is on:
+        the dashboard has no sign-in, and shows the calendar."""
+        if self.app.cfg["app"]["remote_view"] or path.startswith("/api/hook/"):
+            return True
+        return ipaddress.ip_address(self.client_address[0].split("%")[0]).is_loopback
+
+    def _hook(self, path, query, raw):
+        token = self.app.cfg["webhooks"]["token"]
+        if not token:
+            return self._json({"error": "webhooks are off: set [webhooks] token in config.toml"}, 403)
+        given = self.headers.get("Authorization", "").removeprefix("Bearer ").strip() \
+            or urllib.parse.parse_qs(query).get("token", [""])[0]
+        if not hmac.compare_digest(given.encode(), token.encode()):
+            return self._json({"error": "wrong or missing token"}, 401)
+        try:
+            body = json.loads(raw or b"{}")
+            if path == "/api/hook/alert":
+                self._json(self.app.hooks.alert(body), 201)
+            elif path == "/api/hook/grafana":
+                self._json(self.app.hooks.grafana(body))
+            else:
+                self._json({"error": "not found"}, 404)
+        except (HookError, ValueError) as exc:
+            self._json({"error": str(exc)}, 422)
+
     def do_GET(self):
         path = urllib.parse.urlsplit(self.path).path
         app = self.app
+        if not self._allowed(path):
+            return self._json({"error": "only this Pi may open the dashboard ([app] remote_view)"}, 403)
         try:
             if path == "/api/settings":
                 self._json(app.settings())
@@ -163,9 +198,17 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": str(exc)}, 502)
 
     def do_POST(self):
-        path = urllib.parse.urlsplit(self.path).path
-        app = self.app
-        self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        url = urllib.parse.urlsplit(self.path)
+        path, app = url.path, self.app
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > 1_000_000:
+            self.close_connection = True
+            return self._json({"error": "too big"}, 413)
+        raw = self.rfile.read(length)
+        if not self._allowed(path):
+            return self._json({"error": "only this Pi may use the dashboard ([app] remote_view)"}, 403)
+        if path.startswith("/api/hook/"):
+            return self._hook(path, url.query, raw)
         # Only this page may press buttons: another site's page open in a
         # browser can't make it play announcements.
         origin = self.headers.get("Origin")
@@ -212,6 +255,7 @@ def main():
     app.screen.start()
     app.intercom.start()
     app.multicast.start()
+    app.lab.start()
 
     Handler.app = app
     server = ThreadingHTTPServer((host or "127.0.0.1", int(port)), Handler)

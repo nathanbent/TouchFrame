@@ -9,6 +9,7 @@ A home dashboard for the Raspberry Pi Touch Display (7", 800×480): the time, we
 | **Home** | The time and date, the weather now, the next 8 hours, the next 4 days, and what's coming up on the calendar |
 | **Calendar** | This month, and the next 7 days of events |
 | **Alerts** | Text pages from the intercom, as they arrive and afterwards |
+| **Lab** | Prometheus targets that are down and Zabbix problems. Shown when `[prometheus]` or `[zabbix]` is set |
 | **Intercom** | A button for each announcement on the intercom panel. Shown when `[intercom]` is set |
 
 The screen goes back to Home after two minutes untouched.
@@ -81,7 +82,7 @@ A text page takes over the whole screen in large type, whichever tab (or photo) 
 
 ![The Alerts tab](docs/alerts.png)
 
-Alerts come by two routes, and either works without the other:
+Alerts come by three routes, and each works without the others:
 
 ### From the panel
 
@@ -106,6 +107,58 @@ On the panel, add the same group to a zone's **Text displays**. Anything else th
 - A channel carries only the words, so a page from one is headed with the sender's name, stays up for `hold_seconds`, and is an emergency only if it has one of `emergency_words`.
 - With both routes set, the same page arriving both ways is shown once, and the Alerts tab says it came "via panel · via multicast 239.192.3.1:11000". A page that lists only one of them didn't arrive by the other, which is the thing to look for when testing the network.
 - The Alerts tab shows each group, whether it's being listened to, and how many pages it has heard.
+
+### From other systems (webhooks)
+
+Anything that can send an HTTP request can put an alert on the screen. Set a token, and listen on the network:
+
+```toml
+[app]
+listen = "0.0.0.0:8660"
+
+[webhooks]
+token = "a-long-random-string"
+```
+
+```bash
+curl -H "Authorization: Bearer a-long-random-string" -H "Content-Type: application/json" -d '{"title": "Washer", "text": "Laundry is done"}' http://pi-home-1.local:8660/api/hook/alert
+```
+
+| Field | |
+| --- | --- |
+| `text` | The words: a string, or a list of lines. Needed |
+| `title` | The heading ("Alert" unless given) |
+| `priority` | `normal`, `high` or `emergency` |
+| `seconds` | How long it stays up (`hold_seconds` unless given) |
+| `key` | A name for it, so it can be updated, or taken down early with `{"key": "washer", "end": true}` |
+
+The token can also go in the URL (`?token=...`) for systems that can't set a header.
+
+**Grafana:** add a contact point of type *Webhook* with the URL `http://PI:8660/api/hook/grafana?token=...`. Each firing alert goes up once, headed with its name and showing its summary, and comes down when Grafana says it's resolved. Its `severity` label sets the priority (`emergency_severities` and `high_severities` under `[webhooks]`).
+
+Other machines can only post webhooks. They can't open the dashboard (which has no sign-in and shows your calendar) unless `remote_view = true` is set under `[app]`.
+
+## Lab
+
+![The Lab tab](docs/lab.png)
+
+The Lab tab shows up when either of these is set:
+
+```toml
+[prometheus]
+url = "http://10.0.30.10:9090"
+
+[zabbix]
+url = "http://10.0.30.20:180"
+token = "..."
+```
+
+- **Prometheus:** how many scrape targets are up, and a list of the ones that aren't.
+- **Zabbix:** current problems by severity, worst first, with the host and how long each has been going. Acknowledged ones are dimmed. It needs Zabbix 6.4 or later and an API token (Users → API tokens); a read-only user is enough. Problems on disabled hosts and triggers are left out, as on Zabbix's own dashboard.
+- The tab's badge counts High and Disaster problems.
+- `alert_severity = 4` under `[zabbix]` also puts each *new* High or Disaster problem on the screen as an alert (a Disaster as an emergency). Problems already there when TouchFrame starts don't.
+
+Both are checked once a minute. If one stops answering, its last numbers stay up and the corner says "Lab offline".
 
 ## Screensaver
 
@@ -133,7 +186,7 @@ dims the backlight from 22:00 to 07:00. A touch, or a text page going up, brings
 .venv/bin/python -m touchframe --config config.toml -v
 ```
 
-Then open <http://127.0.0.1:8660/>. To reach it from another computer, set `listen = "0.0.0.0:8660"` under `[app]`. There's no sign-in, so anyone on the network can then see the calendar and press the intercom's buttons.
+Then open <http://127.0.0.1:8660/>. To open it from another computer, set `listen = "0.0.0.0:8660"` and `remote_view = true` under `[app]`. There's no sign-in, so anyone on the network can then see the calendar and press the intercom's buttons.
 
 ## Logs
 
@@ -153,6 +206,8 @@ touchframe/
   intercom.py   the link to the mcast intercom panel
   multicast.py  text pages from multicast groups, by `mcast text recv`
   alerts.py     the alerts on screen, and their history
+  hooks.py      alerts from webhooks (and Grafana)
+  lab.py        Prometheus targets and Zabbix problems
   photos.py     the screensaver's photos
   screen.py     backlight dimming
   web/          the page (index.html, app.css, app.js)

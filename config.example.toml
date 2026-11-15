@@ -4,6 +4,8 @@
 [app]
 theme = "dark"                  # "dark", "light" or "auto" (light by day, dark at night)
 clock = "12h"                   # or "24h"
+listen = "127.0.0.1:8660"       # "0.0.0.0:8660" to take webhooks from other machines
+remote_view = false             # true also lets other machines open the dashboard (it has no sign-in)
 idle_home_seconds = 120         # back to Home after this long untouched (0 = never)
 
 # [weather] and [calendar] take the same settings as InkFrame's config.toml,
@@ -48,6 +50,27 @@ hold_seconds = 20               # how long a page from a channel stays up
 [alerts]
 emergency_stays = true          # an emergency page stays up, flashing, until it's tapped
 emergency_words = []            # e.g. ["fire", "lockdown"]: pages with these words are emergencies
+
+[prometheus]
+url = ""                        # e.g. "http://10.0.30.10:9090"; "" = off
+token = ""                      # only if yours needs one
+ignore_jobs = []                # jobs to leave out of the counts
+interval_seconds = 60
+
+[zabbix]
+url = ""                        # e.g. "http://10.0.30.20:180"; "" = off
+token = ""                      # an API token: Users > API tokens in Zabbix (a read-only user is enough)
+min_severity = 2                # list problems from this up: 2 Warning, 3 Average, 4 High, 5 Disaster
+alert_severity = 0              # new problems this severe also go up as alerts (0 = never; 4 = High and Disaster)
+alert_seconds = 60
+interval_seconds = 60
+
+[webhooks]
+# Lets other systems put alerts on the screen. Needs listen = "0.0.0.0:8660" under [app].
+token = ""                      # a long random string; "" = off
+hold_seconds = 60               # how long an alert stays up unless it says
+emergency_severities = ["disaster"]              # Grafana "severity" labels shown as emergencies
+high_severities = ["critical", "high", "error"]  # and as high priority
 
 [screensaver]
 enabled = true
