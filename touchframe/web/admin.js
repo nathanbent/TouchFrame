@@ -37,7 +37,7 @@ const store = {
   set(key, value) { try { localStorage.setItem(key, value); } catch { /* not remembered, that's all */ } },
 };
 
-const TAB_NAMES = { home: "Home", calendar: "Calendar", alerts: "Alerts", lab: "Lab", intercom: "Intercom" };
+const TAB_NAMES = { home: "Home", calendar: "Calendar", alerts: "Alerts", streams: "Streams", lab: "Lab", intercom: "Intercom" };
 const HELP = [["use", "Use it for"], ["give", "Give it"], ["get", "You get"], ["limits", "Limits"], ["more", "More"]];
 
 let config = null, shown = null, dirty = false, readers = [], ids = 0;

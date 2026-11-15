@@ -17,7 +17,7 @@ import urllib.parse
 log = logging.getLogger(__name__)
 
 FILE = "settings.json"
-TABS = ["home", "calendar", "alerts", "lab", "intercom"]
+TABS = ["home", "calendar", "alerts", "streams", "lab", "intercom"]
 
 
 class SettingsError(ValueError):
@@ -76,7 +76,8 @@ SECTIONS = [
             "use": "setting your location. The forecast comes from Open-Meteo, which needs no account or key.",
             "give": "latitude and longitude as decimal degrees, for example 40.7128 and -74.0060. "
                     "West and south are negative. The name is only a label for the corner of the screen.",
-            "get": "a new forecast straight away.",
+            "get": "a new forecast straight away. In the US, active Weather Service alerts for the "
+                   "location show as a banner on Home.",
             "limits": "There is no search by place name: look the coordinates up on a map first.",
         },
         "fields": [
@@ -85,6 +86,14 @@ SECTIONS = [
             F("weather.longitude", "Longitude", "float", min=-180, max=180, placeholder="-74.0060"),
             F("weather.units", "Units", "choice", options=[["imperial", "Fahrenheit, mph"], ["metric", "Celsius, km/h"]]),
             F("weather.interval_minutes", "Check every", "int", min=5, max=240, unit="minutes"),
+            F("weather.air_quality", "Show the air quality index", "bool",
+              "Under the date. The US index with Fahrenheit, the European one with Celsius."),
+            F("weather.warnings", "Show Weather Service alerts", "bool",
+              "US National Weather Service alerts for this location, as a banner on Home. Nothing outside the US. Changing this restarts TouchFrame.",
+              heading="Weather alerts"),
+            F("weather.page_severity", "New alerts take over the screen from", "choice",
+              options=[["extreme", "Extreme"], ["severe", "Severe"], ["moderate", "Moderate"], ["off", "Never"]]),
+            F("weather.page_seconds", "And stay for", "int", min=5, max=3600, unit="seconds"),
         ],
     },
     {
@@ -156,6 +165,9 @@ SECTIONS = [
             F("multicast.groups", "Multicast groups", "list", placeholder="239.192.3.1:11000", heading="Multicast"),
             F("multicast.name", "Name reported to senders", "text", "Empty uses the Pi's host name.", maxlen=60),
             F("multicast.hold_seconds", "A multicast page stays for", "int", min=3, max=3600, unit="seconds"),
+            F("multicast.monitor", "Show the Streams tab", "bool",
+              "Measures what arrives on these groups and on streams announced with SAP."),
+            F("multicast.watch", "Other groups to measure", "list", "Your audio zones, say.", placeholder="239.192.2.1:10000"),
             F("webhooks.token", "Webhook token", "secret", "Empty turns webhooks off.", heading="Webhooks"),
             F("webhooks.hold_seconds", "A webhook alert stays for", "int",
               "Unless the sender says how long.", min=3, max=86400, unit="seconds"),
@@ -257,7 +269,7 @@ LIVE = ("app.", "alerts.", "webhooks.", "screen.", "screensaver.", "weather.", "
 
 
 def is_live(key):
-    return key.startswith(LIVE) and key != "app.listen"
+    return key.startswith(LIVE) and key not in ("app.listen", "weather.warnings")
 
 
 # ---------- reading and writing the config by key ----------

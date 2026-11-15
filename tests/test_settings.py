@@ -112,6 +112,11 @@ class Saving(unittest.TestCase):
         (tmp / settings.FILE).write_text("not json")
         self.assertEqual(config.load(tmp / "config.toml")["app"]["theme"], "dark")
 
+    def test_turning_weather_alerts_on_or_off_needs_a_restart(self):
+        s, _ = make()
+        self.assertEqual(s.save({"weather.page_severity": "extreme"}), {"restart": False})
+        self.assertEqual(s.save({"weather.warnings": False}), {"restart": True})
+
     def test_network_switch_keeps_the_port(self):
         s, _ = make('listen = "127.0.0.1:9000"\n')
         self.assertEqual(s.save({"app.listen": True}), {"restart": True})

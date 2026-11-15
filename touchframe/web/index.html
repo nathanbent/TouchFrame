@@ -16,9 +16,11 @@
       <div class="clock">
         <div class="time"><span id="time">--:--</span><span id="ampm"></span></div>
         <div class="date" id="date"></div>
+        <div class="sun" id="sun"></div>
       </div>
       <div class="now" id="now"></div>
     </div>
+    <button class="warn-banner" id="warn" hidden></button>
     <div class="hours card hscroll" id="hours"></div>
     <div class="bottom">
       <div class="days card hscroll" id="days"></div>
@@ -37,6 +39,10 @@
   <section id="alerts" class="view" data-tab="alerts">
     <div class="al-head" id="al-sources"></div>
     <div class="al-list scroll" id="al-list"></div>
+  </section>
+
+  <section id="streams" class="view" data-tab="streams">
+    <div class="lab-list scroll" id="streams-list"></div>
   </section>
 
   <section id="lab" class="view" data-tab="lab">

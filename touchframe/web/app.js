@@ -34,6 +34,7 @@ const ICONS = {
   alerts: "M6 17h12l-1.5-2.5V11a4.5 4.5 0 0 0-9 0v3.5zM10.5 20h3",
   lab: "M5 5h14v6H5zM5 13h14v6H5zM8 8h.01M8 16h.01",
   intercom: "M4 10v4h3l6 4V6l-6 4zM16.5 9a4 4 0 0 1 0 6",
+  streams: "M4 17v-3M8 17V9M12 17v-6M16 17V6M20 17v-9",
   settings: "M5 7h7M16 7h3M5 12h2M11 12h8M5 17h9M18 17h1M14 5v4M9 10v4M16 15v4",
   check: "M5 12.5l4.5 4.5L19 7",
   warn: "M12 4.5 21 20H3zM12 10v4.5M12 17h.01",
@@ -127,7 +128,7 @@ function drawWeather() {
   const now = $("now"), hours = $("hours"), days = $("days");
   if (!weather || weather.error) {
     now.replaceChildren(h("div", { class: "muted" }, weather ? "No weather: " + weather.error : ""));
-    hours.replaceChildren(); days.replaceChildren();
+    hours.replaceChildren(); days.replaceChildren(); $("sun").replaceChildren();
     return;
   }
   const cur = weather.current, today = weather.days[0];
@@ -151,9 +152,18 @@ function drawWeather() {
       h("div", { class: "when" }, midnight ? WEEKDAYS[at.getDay()].slice(0, 3) : clockText(at, true)),
       icon(hr.kind, hr.day),
       h("div", { class: "t num" }, deg(hr.temp)),
-      h("div", { class: "rain" }, hr.rain >= 10 ? `${hr.rain}%` : ""));
+      h("div", { class: "rain" }, hr.rain >= 10 && [
+        h("span", { class: "rain-track" }, h("span", { class: "rain-fill", style: `width:${hr.rain}%` })),
+        `${hr.rain}%`]));
   }));
   hours.scrollLeft = keep;
+
+  // Under the date: sunrise and sunset, and the air.
+  const air = weather.air;
+  put($("sun"),
+    today && today.sunrise && today.sunset &&
+      h("span", {}, `Sun ${clockText(new Date(today.sunrise))} to ${clockText(new Date(today.sunset))}`),
+    air && h("span", { class: `air level-${air.level}` }, `Air ${air.index}${DOT}${air.label}`));
 
   const keepDays = days.scrollLeft;
   days.replaceChildren(...weather.days.slice(1).map(d =>
@@ -166,6 +176,29 @@ function drawWeather() {
 
   applyTheme();
   drawStatus();
+}
+
+// Weather Service alerts: a banner on Home, and the full words on a tap.
+function drawWarnings() {
+  const list = state && state.warnings ? state.warnings : [];
+  const el = $("warn");
+  el.hidden = !list.length;
+  $("home").classList.toggle("warned", list.length > 0);    // makes room for the banner
+  if (!list.length) return;
+  const first = list[0];
+  let until = "";
+  if (first.ends) {
+    const d = new Date(first.ends);
+    until = ` until ${clockText(d, true)}` + (ymd(d) === ymd(new Date()) ? "" : ` ${WEEKDAYS[d.getDay()].slice(0, 3)}`);
+  }
+  el.className = `warn-banner ${first.severity}`;
+  put(el, ico("warn"), h("b", {}, first.event), until,
+    h("span", { class: "more" }, list.length > 1 && `+${list.length - 1} more`, ico("right", "small")));
+  el.onclick = () => detail(list.map(a => [
+    h("h1", {}, a.event),
+    a.headline && h("p", { class: "muted" }, a.headline),
+    a.description && h("p", {}, a.description),
+    a.instruction && h("p", {}, h("b", {}, a.instruction))]));
 }
 
 // ---------- calendar ----------
@@ -214,7 +247,7 @@ function drawCalendar() {
   next.onclick = () => goTab("calendar");
   if (problem !== null) next.append(h("div", { class: "empty" }, problem));
   else if (!days.length) next.append(h("div", { class: "empty" }, `Nothing in the next ${calendar.days} days`));
-  let room = 4;
+  let room = 3.4;
   for (const [d, events] of days) {
     if (room < 2) break;
     next.append(h("h2", {}, dayName(d)));
@@ -227,25 +260,43 @@ function drawCalendar() {
   drawStatus();
 }
 
-// The Calendar tab. The month can be swiped (or stepped) a few months ahead,
-// and a day can be tapped to see just that day.
+// The Calendar tab: a month that can be swiped (or stepped) to other months,
+// and beside it what's coming up, the month being looked at, or a tapped day.
 let monthOffset = 0, picked = null;
+const otherMonths = {};     // "2026-12" -> events, fetched as they're opened
 
-function drawAgenda(days = agendaDays(), problem = null) {
-  const span = calendar ? `Next ${calendar.days} days` : "";
+function shownMonth() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+}
+const monthKey = (d = shownMonth()) => `${d.getFullYear()}-${d.getMonth() + 1}`;
+const monthEvents = () => !calendar ? [] : monthOffset ? (otherMonths[monthKey()] || []) : calendar.events;
+
+function drawAgenda(days = agendaDays(), problem = calendarProblem()) {
+  const span = calendar ? `Next ${calendar.days} days` : "", first = shownMonth();
   put($("agenda-head"),
-    h("h1", {}, picked ? dayName(day(picked)) : span),
-    picked && h("button", { class: "btn round", onclick: () => pick(null) }, span));
+    h("h1", {}, picked ? dayName(day(picked)) : monthOffset ? `${MONTHS[first.getMonth()]} ${first.getFullYear()}` : span),
+    (picked || monthOffset !== 0) && h("button", { class: "btn round", onclick: backToNow }, span));
   const agenda = $("agenda");
   agenda.replaceChildren();
   if (problem !== null) return agenda.append(h("div", { class: "empty" }, problem));
-  if (picked) {
-    const from = day(picked), to = new Date(from); to.setDate(to.getDate() + 1);
-    const events = calendar.events.filter(e => new Date(e.start) < to && new Date(e.stop) > from)
-      .map(e => ({ ...e, start: new Date(e.start), all_day: e.all_day || new Date(e.start) < from }))
-      .sort((a, b) => (b.all_day - a.all_day) || (a.start - b.start) || a.title.localeCompare(b.title));
-    agenda.append(...events.map(eventRow));
-    if (!events.length) agenda.append(h("div", { class: "empty" }, "Nothing on this day"));
+  if (picked || monthOffset) {
+    // One day, or the whole of the month being looked at.
+    const byDay = new Map();
+    for (const e of monthEvents()) {
+      const last = new Date(new Date(e.stop) - 1000);
+      for (let d = day(e.start); d <= last; d.setDate(d.getDate() + 1)) {
+        const key = ymd(d);
+        if (picked ? key !== picked : d.getMonth() !== first.getMonth()) continue;
+        if (!byDay.has(key)) byDay.set(key, []);
+        byDay.get(key).push({ ...e, start: new Date(e.start), all_day: e.all_day || ymd(new Date(e.start)) !== key, until: null });
+      }
+    }
+    for (const [key, list] of [...byDay.entries()].sort()) {
+      if (!picked) agenda.append(h("h2", {}, dayName(day(key))));
+      agenda.append(...list.sort((a, b) => (b.all_day - a.all_day) || (a.start - b.start) || a.title.localeCompare(b.title)).map(eventRow));
+    }
+    if (!byDay.size) agenda.append(h("div", { class: "empty" }, picked ? "Nothing on this day" : "Nothing this month"));
     return;
   }
   if (!days.length) agenda.append(h("div", { class: "empty" }, `Nothing in the next ${calendar.days} days`));
@@ -256,8 +307,16 @@ function drawAgenda(days = agendaDays(), problem = null) {
 
 function pick(date) {
   picked = date === picked ? null : date;
-  drawAgenda(agendaDays(), calendarProblem());
+  drawAgenda();
   drawMonth();
+}
+
+function backToNow() {
+  const slide = monthOffset > 0 ? "from-left" : monthOffset < 0 ? "from-right" : "";
+  monthOffset = 0;
+  picked = null;
+  drawAgenda();
+  drawMonth(slide);
 }
 
 function calendarProblem() {
@@ -265,19 +324,26 @@ function calendarProblem() {
     : !calendar.configured ? "Add a calendar: Settings, then Set up from another device" : null;
 }
 
-function shiftMonth(by) {
-  const last = (calendar && calendar.months || 1) - 1;
-  const to = Math.max(0, Math.min(last, monthOffset + by));
+async function shiftMonth(by) {
+  const to = Math.max(-12, Math.min(24, monthOffset + by));
   if (to === monthOffset) return;
   monthOffset = to;
+  picked = null;
+  drawAgenda();
   drawMonth(by > 0 ? "from-right" : "from-left");
+  if (!monthOffset || !calendar || !calendar.configured) return;
+  const key = monthKey();
+  try {
+    otherMonths[key] = (await get(`/api/calendar?month=${key}`)).events;
+    if (monthOffset && monthKey() === key) { drawAgenda(); drawMonth(); }
+  } catch (err) { toast(err.message); }
 }
 
 function drawMonth(slide = "") {
-  const now = new Date(), first = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+  const now = new Date(), first = shownMonth();
   const monday = calendar && calendar.week_start === "monday";
   const busy = new Set();
-  for (const e of (calendar ? calendar.events : [])) {
+  for (const e of monthEvents()) {
     const last = new Date(new Date(e.stop) - 1000);
     for (let d = day(e.start); d <= last; d.setDate(d.getDate() + 1)) busy.add(ymd(d));
   }
@@ -297,13 +363,63 @@ function drawMonth(slide = "") {
       grid.append(h("button", { class: cls.join(" "), onclick: () => pick(key) }, String(d.getDate())));
     }
   } while (d.getMonth() === first.getMonth());
-  const last = (calendar && calendar.months || 1) - 1;
   $("month").replaceChildren(
     h("div", { class: "month-head" },
-      h("button", { "aria-label": "Earlier", disabled: monthOffset <= 0, onclick: () => shiftMonth(-1) }, ico("left")),
+      h("button", { "aria-label": "Earlier", disabled: monthOffset <= -12, onclick: () => shiftMonth(-1) }, ico("left")),
       h("h1", {}, `${MONTHS[first.getMonth()]} ${first.getFullYear()}`),
-      h("button", { "aria-label": "Later", disabled: monthOffset >= last, onclick: () => shiftMonth(1) }, ico("right"))),
+      h("button", { "aria-label": "Later", disabled: monthOffset >= 24, onclick: () => shiftMonth(1) }, ico("right"))),
     grid);
+}
+
+// ---------- streams ----------
+// What this Pi is receiving over multicast. Asked for only while the tab is open.
+let streamsTimer = null;
+
+const bits = k => k >= 1000 ? `${(k / 1000).toFixed(1)} Mbit/s` : `${k < 10 ? k.toFixed(1) : Math.round(k)} kbit/s`;
+const DSCP = { 0: "BE", 46: "EF", 34: "AF41", 26: "AF31", 48: "CS6", 40: "CS5", 32: "CS4", 24: "CS3" };
+const none = v => v === null || v === undefined;
+
+function streamRow(s) {
+  if (s.silent) {
+    return h("div", { class: "strow card silent" },
+      h("div", { class: "st-main" }, h("b", {}, s.name || s.group), h("div", { class: "lab-sub" }, s.name ? s.group : "")),
+      h("div", { class: "st-state" }, s.error ? mark(false, s.error) : "Nothing heard yet"));
+  }
+  const idle = s.idle_ms > 3000;
+  const lossy = s.loss_percent >= 1;
+  // Level: -60 dBFS to 0 across the bar.
+  const level = none(s.peak_dbfs) ? null : Math.max(0, Math.min(100, (s.peak_dbfs + 60) / 60 * 100));
+  const dscp = none(s.tos) ? "" : (DSCP[s.tos >> 2] || `DSCP ${s.tos >> 2}`);
+  return h("div", { class: `strow card${idle ? " idle" : ""}` },
+    h("div", { class: "st-main" },
+      h("b", {}, s.name || s.group),
+      h("div", { class: "lab-sub" }, [s.name ? s.group : null, s.source, s.codec || (!none(s.payload_type) ? `pt ${s.payload_type}` : null)].filter(Boolean).join(DOT)),
+      level !== null && !idle && h("div", { class: "meter-track" }, h("div", { class: "meter-fill", style: `width:${level}%` }))),
+    h("div", { class: "st-stats" },
+      stat(idle ? "idle" : bits(s.kbit_per_sec), idle ? `${Math.round(s.idle_ms / 1000)} s` : "rate"),
+      h("div", { class: `stat${lossy ? " bad" : ""}` }, h("b", { class: "num" }, `${s.loss_percent.toFixed(s.loss_percent < 10 ? 1 : 0)}%`), h("span", {}, lossy ? mark(false, `${s.lost} lost`) : `${s.lost} lost`)),
+      stat(none(s.jitter_ms) ? "-" : `${s.jitter_ms < 10 ? s.jitter_ms.toFixed(1) : Math.round(s.jitter_ms)} ms`, "jitter"),
+      stat(none(s.ttl) ? "-" : String(s.ttl), `TTL${dscp ? `${DOT}${dscp}` : ""}`)));
+}
+
+async function loadStreams() {
+  clearTimeout(streamsTimer);
+  if (current !== "streams") return;
+  let data;
+  try { data = await get("/api/streams"); } catch (err) { data = { error: err.message, streams: [], listeners: [] }; }
+  const live = data.streams.filter(s => !s.silent), quiet = data.streams.filter(s => s.silent);
+  live.sort((a, b) => (a.idle_ms > 3000) - (b.idle_ms > 3000) || (a.name || a.group).localeCompare(b.name || b.group));
+  const list = $("streams-list"), keep = list.scrollTop;
+  put(list,
+    data.error && h("div", { class: "lab-error" }, mark(false, data.error)),
+    live.map(streamRow), quiet.map(streamRow),
+    data.listeners.length && h("h2", {}, "Receivers reporting"),
+    data.listeners.filter(l => !l.left).map(l => h("div", { class: "strow card" },
+      h("div", { class: "st-main" }, h("b", {}, l.name || l.from), h("div", { class: "lab-sub" }, `${l.group}${DOT}${l.about === null ? "hearing nothing" : "listening"}`)),
+      h("div", { class: "st-stats" }, stat(none(l.loss_percent) ? "-" : `${l.loss_percent.toFixed(1)}%`, "loss")))),
+    !data.error && !data.streams.length && h("div", { class: "empty" }, "No streams yet"));
+  list.scrollTop = keep;
+  streamsTimer = setTimeout(loadStreams, 2000);
 }
 
 // ---------- intercom ----------
@@ -330,6 +446,15 @@ function ask(text, { sub = "", yes = "OK", no = "Cancel", danger = false } = {})
     $("dialog").hidden = false;
   });
 }
+/** Something long to read, over the page, with a Close button. */
+function detail(...kids) {
+  closeDialog();
+  put($("dialog"), h("div", { class: "dialog-box wide card" },
+    h("div", { class: "detail-text scroll" }, kids),
+    h("div", { class: "dialog-buttons" }, h("button", { class: "btn", onclick: () => closeDialog() }, "Close"))));
+  $("dialog").hidden = false;
+}
+
 function closeDialog(answer = false) {
   $("dialog").hidden = true;
   dialogHold = false;
@@ -627,9 +752,10 @@ function showPhoto(step = 1, quick = false) {
   saverTimer = setTimeout(showPhoto, Math.max(5, saver.seconds) * 1000);
 }
 
-async function startSaver() {
+async function startSaver(asked) {
   await loadPhotos();
-  if (!saver || !saver.enabled || !saver.photos.length || !$("page").hidden || !$("dialog").hidden) return armSaver();
+  if (asked === true && saver && !saver.photos.length) return toast("No photos yet: copy some into the photo folder");
+  if (!saver || (!saver.enabled && asked !== true) || !saver.photos.length || !$("page").hidden || !$("dialog").hidden) return armSaver();
   $("saver").hidden = false;
   $("saver-clock").hidden = !saver.clock;
   showPhoto();
@@ -689,12 +815,13 @@ function setBadge(tab, count) {
 // Each tab is one page, except Lab, which is two (Overview and Problems).
 // The pages sit side by side: swipe left and right to move between them, or
 // tap a tab.
-const TAB_NAMES = { home: "Home", calendar: "Calendar", alerts: "Alerts", lab: "Lab", intercom: "Intercom", settings: "Settings" };
-const TAB_ORDER = ["home", "calendar", "alerts", "lab", "intercom"];
+const TAB_NAMES = { home: "Home", calendar: "Calendar", alerts: "Alerts", streams: "Streams", lab: "Lab", intercom: "Intercom", settings: "Settings" };
+const TAB_ORDER = ["home", "calendar", "alerts", "streams", "lab", "intercom"];
 const main = $("pager");
 let pages = ["home"], current = "home", settling = null;
 
 const tabReady = tab => tab === "alerts" ? !!settings.alerts : tab === "lab" ? !!settings.lab
+  : tab === "streams" ? !!settings.streams
   : tab === "intercom" ? !!settings.intercom_buttons : true;
 
 function tabViews(tab) {
@@ -775,6 +902,7 @@ function step(by) {
 function shown(view, was) {
   if (view === "alerts" && state && state.alerts.unseen) markSeen();
   if (was === "calendar" && (picked || monthOffset)) { picked = null; monthOffset = 0; drawCalendar(); }
+  if (view === "streams") loadStreams();
   if (view === "settings") drawSettings();
 }
 
@@ -992,12 +1120,15 @@ function drawSettings() {
         h("button", { class: "btn", onclick: forget }, "Forget")),
       s.network && row("Reachable from other devices", "For the settings page and webhooks",
         toggle("Reachable from other devices", true, () => network(false))))],
-    ["This screen", group(
+    ["This screen", [group(
+      row("Show photos now", "", h("button", { class: "btn", onclick: () => startSaver(true) }, "Show")),
+      s.alerts && row("Send a test alert", "Takes over the screen for a few seconds", h("button", { class: "btn", onclick: () => post("/api/alerts/test").catch(e => toast(e.message)) }, "Send")),
       row("Restart TouchFrame", "Takes a few seconds", h("button", { class: "btn", onclick: restart }, "Restart")),
-      row("Reload this page", "", h("button", { class: "btn", onclick: () => location.reload() }, "Reload")))],
+      row("Reload this page", "", h("button", { class: "btn", onclick: () => location.reload() }, "Reload"))),
+      h("div", { class: "set-info" }, [s.hostname, s.address, s.version && `version ${s.version}`].filter(Boolean).join(DOT))]],
   ];
 
-  body.replaceChildren(...sections.flatMap(([name, el]) => [h("h1", {}, name), el]));
+  put(body, sections.map(([name, el]) => [h("h1", {}, name), el]));
   body.scrollTop = keep;
   const heads = [...body.querySelectorAll("h1")];
   // The rail jumps to a section, and shows which one is at the top. The last
@@ -1075,12 +1206,16 @@ function applyTheme() {
   document.documentElement.dataset.theme = settings.theme === "auto" ? auto : settings.theme;
 }
 
-let build = null;
+let serverStarted = null;
+
 async function loadSettings() {
   const was = settings;
-  try { settings = await get("/api/settings"); } catch { return; /* the last ones do */ }
-  if (build && settings.build !== build) return location.reload();     // the page itself was updated
-  build = settings.build;
+  let fresh;
+  try { fresh = await get("/api/settings"); } catch { return; /* the last ones do */ }
+  // The server was restarted (an update, or a setting that needs it): load the new page.
+  if (serverStarted && fresh.started !== serverStarted) return location.reload();
+  serverStarted = fresh.started;
+  settings = fresh;
   applyTheme();
   layout();
   drawClock();
@@ -1112,14 +1247,12 @@ function listen() {
   es.addEventListener("state", e => {
     state = JSON.parse(e.data);
     state.at = Date.now();
+    if (serverStarted && state.started !== serverStarted) return location.reload();     // as in loadSettings
     layout();
-    drawIntercom(); drawAlerts(); drawLab(); drawPage(); drawStatus();
+    drawIntercom(); drawAlerts(); drawLab(); drawWarnings(); drawPage(); drawStatus();
   });
-  // Sent when a setting changes, and on connecting: so also after a restart.
-  es.addEventListener("settings", async () => {
-    await loadSettings();
-    if (!$("wait").hidden) { $("wait").hidden = true; loadWeather(); loadCalendar(); }
-  });
+  // Sent when a setting changes (and on connecting).
+  es.addEventListener("settings", loadSettings);
 }
 
 async function start() {

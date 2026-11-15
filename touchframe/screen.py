@@ -46,7 +46,8 @@ class Screen:
     def apply(self):
         if self.dir is None:
             return
-        percent = self.cfg["dim_brightness"] if self.dimmed() else self.cfg["brightness"]
+        bright = self.cfg["brightness"]
+        percent = min(self.cfg["dim_brightness"], bright) if self.dimmed() else bright
         with self._lock:
             if percent == self._level:
                 return

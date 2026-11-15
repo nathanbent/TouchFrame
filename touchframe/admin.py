@@ -100,18 +100,24 @@ class Admin:
             return sum(1 for v in self._sessions.values() if v > now)
 
 
-def addresses(port):
-    """Where another device can find the settings page: by address, and by name."""
-    out = []
+def local_ip():
+    """This machine's address on the network, or "" when it has none."""
     try:
         # No packet is sent: connecting a UDP socket only picks the outgoing interface.
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.connect(("192.0.2.1", 9))
             ip = s.getsockname()[0]
-        if not ip.startswith("127."):
-            out.append(f"http://{ip}:{port}/admin")
+        return "" if ip.startswith("127.") else ip
     except OSError:
-        pass
+        return ""
+
+
+def addresses(port):
+    """Where another device can find the settings page: by address, and by name."""
+    out = []
+    ip = local_ip()
+    if ip:
+        out.append(f"http://{ip}:{port}/admin")
     name = socket.gethostname().split(".")[0]
     if name and name != "localhost":
         out.append(f"http://{name}.local:{port}/admin")

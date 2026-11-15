@@ -1,6 +1,5 @@
 """The web server: the page, and a small JSON API behind it."""
 import argparse
-import hashlib
 import hmac
 import ipaddress
 import json
@@ -8,6 +7,8 @@ import logging
 import mimetypes
 import os
 import queue
+import socket
+import subprocess
 import sys
 import threading
 import time
@@ -26,6 +27,8 @@ from .multicast import Multicast
 from .photos import Photos
 from .screen import Screen
 from .settings import Settings, SettingsError
+from .streams import Streams
+from .warnings import Warnings
 from .weather import Weather
 
 log = logging.getLogger("touchframe")
@@ -40,14 +43,6 @@ ADMIN_API = {"/api/config", "/api/admin/restart", "/api/admin/reset", "/api/admi
 SCREEN_ONLY = {"/api/admin/code", "/api/admin/qr.svg", "/api/admin/forget"}
 
 
-def _build():
-    """Changes when the page's files do, so a screen left open reloads after an update."""
-    digest = hashlib.sha1()
-    for path in sorted(WEB.glob("*.*")):
-        digest.update(f"{path.name}:{path.stat().st_mtime_ns}".encode())
-    return digest.hexdigest()[:12]
-
-
 class App:
     def __init__(self, cfg, base, listen):
         self.cfg = cfg
@@ -57,7 +52,6 @@ class App:
         self.settings_store = Settings(cfg, base)
         self.settings_store.on_live = self._live
         self.admin = Admin(state)
-        self.build = _build()
         self.weather = Weather(cfg, state)
         self.agenda = Agenda(cfg, state)
         self.screen = Screen(cfg)
@@ -66,15 +60,48 @@ class App:
         self.alerts.on_change = self.publish
         self.intercom = Intercom(cfg, self.alerts, self.publish)
         self.multicast = Multicast(cfg, self.alerts, self.publish)
-        self.lab = Lab(cfg, self.alerts, self.publish)
-        self.hooks = Hooks(cfg, self.alerts)
         self._subs = set()
         self._lock = threading.Lock()
+        self.lab = Lab(cfg, self.alerts, self.publish)
+        self.hooks = Hooks(cfg, self.alerts)
+        self.warnings = Warnings(cfg, state, self.alerts, self.publish)
+        self.streams = Streams(cfg)
+        # Changes each time the server starts. A page that sees a new one reloads
+        # itself, so an update or a config change shows without touching the screen.
+        self.started = str(time.time_ns())
+        try:
+            self.version = subprocess.run(
+                ["git", "-C", str(WEB), "log", "-1", "--format=%h %cs"], capture_output=True,
+                text=True, timeout=5).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            self.version = ""
+        self._adopt_device_file()
+
+    def _adopt_device_file(self):
+        """An earlier version kept the screen's own brightness and theme in device.json.
+        They now live with the other settings; carry them over once."""
+        old = self.state_dir / "device.json"
+        try:
+            device = json.loads(old.read_text())
+        except (OSError, ValueError):
+            return
+        patch = {}
+        if device.get("theme") in ("dark", "light", "auto"):
+            patch["app.theme"] = device["theme"]
+        if isinstance(device.get("brightness"), int):
+            patch["screen.brightness"] = max(5, min(100, device["brightness"]))
+        try:
+            if patch:
+                self.settings_store.save(patch)
+            old.unlink()
+        except (SettingsError, OSError) as exc:
+            log.warning("device.json: %s", exc)
 
     def snapshot(self):
         """Everything that changes by itself: the intercom, alerts and multicast groups."""
         return {"intercom": self.intercom.snapshot(), "alerts": self.alerts.snapshot(),
                 "multicast": self.multicast.snapshot(), "lab": self.lab.snapshot(),
+                "warnings": self.warnings.snapshot(), "started": self.started,
                 "now_ms": int(time.time() * 1000)}
 
     def subscribe(self):
@@ -104,11 +131,14 @@ class App:
         app, weather, screen, saver = (self.cfg[k] for k in ("app", "weather", "screen", "screensaver"))
         return {"theme": app["theme"], "clock": app["clock"],
                 "idle_home_seconds": app["idle_home_seconds"], "tabs": app["tabs"],
+                "streams": self.streams.enabled,
                 "units": weather["units"], "intercom": self.intercom.enabled,
                 "alerts": True, "lab": self.lab.enabled,
                 "intercom_buttons": self.intercom.enabled and self.cfg["intercom"]["buttons"],
                 # For the Settings tab.
-                "can_edit": can_edit, "build": self.build, "network": self.network(),
+                "can_edit": can_edit, "network": self.network(), "started": self.started,
+                "hostname": socket.gethostname(), "version": self.version,
+                "address": admin.local_ip(),
                 "backlight": self.screen.dir is not None,
                 "brightness": screen["brightness"], "dim_hours": screen["dim_hours"],
                 "dim_brightness": screen["dim_brightness"],
@@ -136,6 +166,7 @@ class App:
         def go():
             log.info("restarting to apply settings")
             self.multicast.stop()
+            self.streams.stop()
             logging.shutdown()
             os.execv(sys.executable, [sys.executable, "-m", "touchframe", *sys.argv[1:]])
         timer = threading.Timer(delay, go)
@@ -282,7 +313,14 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/weather":
                 self._json(app.weather.get())
             elif path == "/api/calendar":
-                self._json(app.agenda.get())
+                month = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("month")
+                if month:
+                    year, _, mon = month[0].partition("-")
+                    self._json(app.agenda.month(int(year), int(mon)))
+                else:
+                    self._json(app.agenda.get())
+            elif path == "/api/streams":
+                self._json(app.streams.get())
             elif path == "/api/state":
                 self._json(app.snapshot())
             elif path == "/api/photos":
@@ -329,6 +367,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True})
             elif path.startswith("/api/alerts/close/"):
                 app.alerts.close(int(path.rsplit("/", 1)[1]))
+                self._json({"ok": True})
+            elif path == "/api/alerts/test":
+                app.alerts.show(f"test:{time.time_ns()}", "this screen", "Test",
+                                ["This is a test alert."], until_ms=int(time.time() * 1000) + 8000)
                 self._json({"ok": True})
             elif path == "/api/alerts/seen":
                 app.alerts.seen_all()
@@ -419,6 +461,8 @@ def main():
     app.intercom.start()
     app.multicast.start()
     app.lab.start()
+    app.warnings.start()
+    app.streams.start()
 
     Handler.app = app
     server = Server((host, port), Handler)

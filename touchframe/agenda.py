@@ -15,7 +15,6 @@ log = logging.getLogger(__name__)
 
 HEADERS = {"User-Agent": "TouchFrame/1.0 (Raspberry Pi wall display)"}
 COLOURS = ["blue", "red", "green", "orange", "purple"]
-MONTHS = 4              # this month and the next three can be looked through
 
 
 class Agenda:
@@ -26,6 +25,7 @@ class Agenda:
         self.dir.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._cache = None
+        self._months = {}
 
     def _sources(self):
         out = []
@@ -54,16 +54,19 @@ class Agenda:
             texts.append((data, colour))
         return texts, stale
 
-    def _events(self):
+    def _events(self, month=None):
         import icalendar
         import recurring_ical_events
 
         texts, stale = self._download()
         today = datetime.now().date()
-        first = today.replace(day=1)
-        end = first.month - 1 + MONTHS
-        end = first.replace(year=first.year + end // 12, month=end % 12 + 1)
-        last = max(today + timedelta(days=self.cfg["days"]), end) + timedelta(days=1)
+        if month:                       # (year, month): that month alone
+            first = today.replace(year=month[0], month=month[1], day=1)
+            last = (first + timedelta(days=32)).replace(day=1) + timedelta(days=1)
+        else:
+            first = today.replace(day=1)
+            last = max(today + timedelta(days=self.cfg["days"]),
+                       (first + timedelta(days=32)).replace(day=1)) + timedelta(days=1)
         events = []
         for data, colour in texts:
             cal = icalendar.Calendar.from_ical(data)
@@ -76,13 +79,24 @@ class Agenda:
         events.sort(key=lambda e: (e["start"].date(), not e["all_day"], e["start"], e["title"]))
         return events, stale
 
+    def month(self, year, month):
+        """Another month's events, for looking ahead or back on the Calendar tab."""
+        if not self.cfg["sources"]:
+            return {"events": []}
+        key = (year, month)
+        with self._lock:
+            hit = self._months.get(key)
+            if not hit or _time.monotonic() - hit[0] >= self.interval:
+                if len(self._months) > 24:
+                    self._months.clear()
+                hit = self._months[key] = (_time.monotonic(), self._events(key)[0])
+        return {"events": [_json(e) for e in hit[1]]}
+
     def get(self):
-        """{"configured", "stale", "error", "week_start", "months", "events": [...]}: the
-        events of this month and the next few, each with ISO start and stop in the Pi's
-        local time. The agenda lists the next `days` days of them."""
+        """{"configured", "stale", "error", "week_start", "events": [...]}: this month's events
+        and the next `days` days', each with ISO start and stop in the Pi's local time."""
         out = {"configured": bool(self.cfg["sources"]), "stale": False, "error": None,
-               "week_start": self.cfg["week_start"], "days": self.cfg["days"],
-               "months": MONTHS, "events": []}
+               "week_start": self.cfg["week_start"], "days": self.cfg["days"], "events": []}
         if not out["configured"]:
             return out
         with self._lock:
@@ -94,10 +108,13 @@ class Agenda:
                     # Show the error, and look again in a minute.
                     self._cache = (_time.monotonic() - self.interval + 60, [], False, _short(exc))
             _, events, out["stale"], out["error"] = self._cache
-        out["events"] = [{"title": e["title"], "colour": e["colour"], "all_day": e["all_day"],
-                          "start": e["start"].isoformat(), "stop": e["stop"].isoformat()}
-                         for e in events]
+        out["events"] = [_json(e) for e in events]
         return out
+
+
+def _json(e):
+    return {"title": e["title"], "colour": e["colour"], "all_day": e["all_day"],
+            "start": e["start"].isoformat(), "stop": e["stop"].isoformat()}
 
 
 def _is_ics(data):

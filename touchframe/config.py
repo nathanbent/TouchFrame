@@ -20,6 +20,10 @@ DEFAULTS = {
         "location_name": "",
         "units": "imperial",        # or "metric"
         "interval_minutes": 15,
+        "air_quality": True,
+        "warnings": True,           # US National Weather Service alerts for this location
+        "page_severity": "severe",  # new ones this severe go up as pages: extreme, severe, moderate, off
+        "page_seconds": 120,
     },
     "calendar": {
         "sources": [],              # iCal links, or tables with url and colour
@@ -42,6 +46,10 @@ DEFAULTS = {
         "name": "",                 # reported to senders over RTCP ("" = the host name)
         "interface": "",            # IPv4 address to join on ("" = any)
         "hold_seconds": 20,         # how long a page from a channel stays up
+        "monitor": True,            # the Streams tab: measure what arrives (with groups or watch set)
+        "watch": [],                # other groups to measure, e.g. audio zones
+        "monitor_port": 8659,       # loopback port for the monitor TouchFrame starts
+        "monitor_url": "",          # or an mcast server that's already running, e.g. "http://127.0.0.1:8650"
     },
     "alerts": {
         "emergency_stays": True,    # an emergency page stays up until it's tapped

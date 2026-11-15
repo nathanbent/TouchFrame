@@ -125,7 +125,7 @@ nav {
 /* ---------- home ---------- */
 #home { flex-direction: column; gap: .6rem; }
 .top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex: 1.25; min-height: 0; padding: 0 .3rem; }
-.time { font-family: var(--font-heading); font-size: 6.2rem; font-weight: 500; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--primary); }
+.time { font-family: var(--font-heading); font-size: 5.6rem; font-weight: 500; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--primary); }
 #ampm { font-size: 1.5rem; color: var(--secondary); margin-left: .4rem; letter-spacing: 0; }
 .date { font-size: 1.5rem; color: var(--secondary); margin-top: .35rem; }
 
@@ -143,6 +143,38 @@ nav {
 .hour .when { color: var(--secondary); }
 .hour.newday .when { color: var(--accent); font-weight: 600; }
 .rain { color: var(--accent); font-size: .8rem; min-height: 1rem; }
+.hour .rain { display: flex; align-items: center; gap: .3rem; }
+.rain-track { width: 1.9rem; height: .3rem; border-radius: .2rem; background: var(--code-bg); overflow: hidden; }
+.rain-fill { display: block; height: 100%; border-radius: .2rem; background: var(--accent); }
+
+/* Under the date: sunrise and sunset, and the air. The dot is never alone: the words say it too. */
+.sun { display: flex; white-space: nowrap; gap: 1rem; margin-top: .3rem; font-size: .9rem; color: var(--secondary); }
+.air::before { content: ""; display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; margin-right: .35rem; background: var(--status-ok); }
+.air.level-1::before { background: var(--status-warn-border); } .air.level-2::before { background: var(--cat-orange); } .air.level-3::before { background: var(--status-error); }
+.air.level-2, .air.level-3 { color: var(--primary); font-weight: 600; }
+
+/* A Weather Service alert: a wash of its colour, a solid edge, the words in the normal text colour. */
+.warn-banner {
+  --c: var(--status-warn-border);
+  flex: none; display: flex; align-items: center; gap: .5rem; width: 100%; min-height: 2.6rem; padding: 0 .8rem; border-radius: var(--r);
+  text-align: left; white-space: nowrap; overflow: hidden; color: var(--primary);
+  background: color-mix(in srgb, var(--c) 14%, var(--entry)); border: 1px solid color-mix(in srgb, var(--c) 45%, var(--entry)); border-left: .4rem solid var(--c);
+}
+.warn-banner .ico { color: var(--status-warn); }
+.warn-banner.severe, .warn-banner.extreme { --c: var(--status-error); }
+.warn-banner.severe .ico, .warn-banner.extreme .ico { color: var(--status-error); }
+.warn-banner.extreme { background: var(--status-error); color: var(--on-status); }
+.warn-banner.extreme .ico { color: inherit; }
+.warn-banner.extreme b { color: inherit; }
+.warn-banner:active { background: color-mix(in srgb, var(--c) 22%, var(--entry)); }
+.warn-banner .more { margin-left: auto; display: flex; align-items: center; gap: .3rem; font-weight: 600; }
+#home.warned { gap: .4rem; }
+#home.warned .time { font-size: 4.6rem; }
+#home.warned .now .icon { width: 5rem; height: 5rem; }
+#home.warned .now .temp { font-size: 3.6rem; }
+#home.warned .hours { padding: .3rem 0; }
+#home.warned .hour .icon { width: 1.6rem; height: 1.6rem; }
+#home.warned .day .icon { width: 2rem; height: 2rem; }
 
 .bottom { display: flex; gap: .6rem; flex: 1; min-height: 0; }
 .days { flex: 1; min-width: 0; align-items: center; padding: .5rem 0; }
@@ -246,6 +278,9 @@ nav {
 .dialog-box.wide { width: 42rem; }
 .dialog-text { font-size: 1.25rem; font-weight: 600; color: var(--primary); }
 .dialog-sub { color: var(--content); }
+.detail-text { flex: 1; min-height: 0; user-select: text; -webkit-user-select: text; }
+.detail-text h1 { font-size: 1.25rem; margin-top: .8rem; } .detail-text h1:first-child { margin-top: 0; }
+.detail-text p { margin-top: .4rem; white-space: pre-line; }
 .dialog-buttons { display: flex; gap: .8rem; }
 .dialog-buttons .btn { flex: 1; min-height: 3.5rem; font-size: 1.1rem; }
 
@@ -347,6 +382,20 @@ button.ltile:active { border-color: var(--accent); background: color-mix(in srgb
 .stream-title { font-weight: 600; color: var(--primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stream-sub { font-size: .8rem; color: var(--secondary); }
 
+/* ---------- streams ---------- */
+#streams { flex-direction: column; }
+#streams h2 { margin-top: .4rem; }
+.strow { display: flex; align-items: center; gap: .8rem; padding: .5rem .8rem; }
+.strow.idle, .strow.silent { opacity: .65; }
+.st-main { flex: 1; min-width: 0; }
+.st-main b, .st-main .lab-sub { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-main .meter-track { margin-top: .3rem; max-width: 16rem; }
+.st-stats { flex: none; display: flex; gap: 1rem; text-align: right; }
+.st-stats .stat { min-width: 3.6rem; }
+.st-stats .stat b { font-size: 1.05rem; white-space: nowrap; }
+.st-stats .stat.bad b { color: var(--status-error); }
+.st-state { flex: none; color: var(--secondary); font-size: .9rem; }
+
 /* ---------- settings ---------- */
 #settings { gap: .7rem; }
 .set-rail { flex: none; width: 9.5rem; display: flex; flex-direction: column; gap: .2rem; }
@@ -363,6 +412,7 @@ button.ltile:active { border-color: var(--accent); background: color-mix(in srgb
 .row-label small { display: block; font-size: .8rem; font-weight: 400; color: var(--secondary); }
 .row-control { flex: none; display: flex; align-items: center; gap: .4rem; }
 .row.off .row-label, .row.off .stepper { opacity: .45; }
+.set-info { font-size: .85rem; color: var(--secondary); padding: .2rem .2rem 0; user-select: text; -webkit-user-select: text; }
 
 .seg { display: flex; gap: .15rem; padding: .15rem; border-radius: var(--r); background: var(--code-bg); border: 1px solid var(--border); }
 .seg button { min-height: 2.6rem; min-width: 3.6rem; padding: 0 .9rem; border-radius: calc(var(--r) - .15rem); font-weight: 600; color: var(--content); }

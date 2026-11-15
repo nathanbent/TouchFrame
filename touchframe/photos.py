@@ -39,7 +39,7 @@ class Photos:
     def list(self):
         photos = [{"src": "/photo/" + urllib.parse.quote(p.relative_to(self.folder).as_posix()),
                    "caption": ""} for p in self._files()]
-        if self.cfg["picture_of_the_day"]:
+        if self.cfg["enabled"] and self.cfg["picture_of_the_day"]:
             meta = self._potd()
             if meta:
                 caption = meta["caption"] + (f" \u00b7 {meta['artist']}" if meta.get("artist") else "")
