@@ -97,9 +97,14 @@ class Intercom:
         if zones and not zones & set(page.get("zones", [])):
             return
         text = page["text"]
-        self.alerts.show(f"panel:{page['run']}:{page['at_ms']}", "panel", page["name"],
-                         text if isinstance(text, list) else [text],
-                         priority=self._priority.get(page["run"], "normal"),
+        # A line per entry, as a multicast channel carries the same page (older
+        # panels sent a page of several lines as one entry), so the two match.
+        lines = [line for entry in (text if isinstance(text, list) else [text])
+                 for line in str(entry).splitlines()]
+        # Newer panels say the page's priority; older ones only on its run.
+        priority = page.get("priority") or self._priority.get(page["run"], "normal")
+        self.alerts.show(f"panel:{page['run']}:{page['at_ms']}", "panel", page["name"], lines,
+                         priority=priority,
                          until_ms=page.get("until_ms"), at_ms=page["at_ms"])
 
     def _refresh(self):

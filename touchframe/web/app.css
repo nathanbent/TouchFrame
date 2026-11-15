@@ -20,7 +20,7 @@ html { font-size: min(2vw, 3.3333vh); height: 100%; }
 body {
   height: 100%; display: flex; flex-direction: column; overflow: hidden;
   background: var(--bg); color: var(--text);
-  font-family: system-ui, "Segoe UI", Roboto, "Noto Sans", "DejaVu Sans", sans-serif;
+  font-family: system-ui, "Segoe UI", Roboto, "Noto Sans", "DejaVu Sans", sans-serif, "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji";
   font-size: 1rem; line-height: 1.25;
   user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
@@ -144,6 +144,7 @@ nav .playing:not([hidden]) + .status { margin-left: .6rem; }
 .tile.amber { background: var(--c-amber); } .tile.green { background: var(--c-green); }
 .tile.teal { background: var(--c-teal); } .tile.blue { background: var(--c-blue); }
 .tile.purple { background: var(--c-purple); }
+.tile.talking { background: var(--c-red); }
 .tile.busy { outline: .25rem solid var(--text); outline-offset: -.25rem; }
 .tile.busy::after {
   content: ""; position: absolute; top: .7rem; right: .7rem; width: .8rem; height: .8rem;

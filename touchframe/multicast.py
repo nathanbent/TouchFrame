@@ -5,6 +5,7 @@ is a real multicast receiver: it joins the group, and reports to the sender
 over RTCP under its own name, which is how the intercom panel knows it heard
 a page. Nothing here goes through the panel's API.
 """
+import json
 import logging
 import shutil
 import socket
@@ -46,11 +47,23 @@ class Group:
                          sender or "Text page", lines,
                          until_ms=at + self.cfg["hold_seconds"] * 1000)
 
-    def _line(self, line):
-        # `mcast text recv` prints "SENDER: the text", one line at a time.
-        sender, sep, text = line.partition(": ")
-        if not sep:
-            sender, text = None, line
+    def _line(self, line, as_json):
+        if as_json:
+            # `mcast text recv --json`: an object per line; only "line" is a page's text.
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                return
+            if entry.get("type") != "line":
+                return
+            sender, text = entry.get("from"), str(entry.get("text", ""))
+        else:
+            # Older mcast prints "SENDER: the text", one line at a time.
+            sender, sep, text = line.partition(": ")
+            if not sep:
+                sender, text = None, line
+        if not text.strip():
+            return
         with self._lock:
             if self._timer:
                 self._timer.cancel()
@@ -79,6 +92,11 @@ class Group:
                "-n", self.cfg["name"] or socket.gethostname()]
         if self.cfg["interface"]:
             cmd += ["-i", str(self.cfg["interface"])]
+        # Structured output, where this mcast has it: a sender's name with ": "
+        # in it, or text that looks like a name, can't then be mistaken.
+        as_json = _has_json(binary)
+        if as_json:
+            cmd.append("--json")
         while True:
             try:
                 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -91,7 +109,7 @@ class Group:
             self._set(listening=True, error=None)
             for line in proc.stdout:
                 if line.strip():
-                    self._line(line.rstrip("\r\n"))
+                    self._line(line.rstrip("\r\n"), as_json)
             # It only ends when something is wrong: a bad group, no network yet.
             error = (proc.stderr.read() or "").strip().splitlines()
             proc.wait()
@@ -99,6 +117,16 @@ class Group:
             log.warning("multicast %s: %s; trying again in 10 s", self.group, error)
             self._set(listening=False, error=error)
             time.sleep(10)
+
+
+def _has_json(binary):
+    """Whether this `mcast text recv` can print JSON (mcast-tools after 0.5.12)."""
+    try:
+        out = subprocess.run([binary, "text", "recv", "--help"], capture_output=True, text=True,
+                             timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return "--json" in out
 
 
 class Multicast:
