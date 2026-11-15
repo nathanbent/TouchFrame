@@ -399,6 +399,15 @@ class Handler(BaseHTTPRequestHandler):
                 app.alerts.show(f"test:{time.time_ns()}", "this screen", "Test",
                                 ["This is a test alert."], until_ms=int(time.time() * 1000) + 8000)
                 self._json({"ok": True})
+            elif path.startswith("/api/alerts/archive/"):
+                app.alerts.archive(int(path.rsplit("/", 1)[1]))
+                self._json({"ok": True})
+            elif path.startswith("/api/alerts/restore/"):
+                app.alerts.archive(int(path.rsplit("/", 1)[1]), archived=False)
+                self._json({"ok": True})
+            elif path == "/api/alerts/archive-all":
+                app.alerts.archive_all()
+                self._json({"ok": True})
             elif path == "/api/alerts/seen":
                 app.alerts.seen_all()
                 self._json({"ok": True})
