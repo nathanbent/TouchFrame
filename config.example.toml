@@ -1,0 +1,43 @@
+# TouchFrame settings. install.sh copies this to config.toml, which git ignores.
+# Restart after editing:  sudo systemctl restart touchframe
+
+[app]
+theme = "dark"                  # "dark", "light" or "auto" (light by day, dark at night)
+clock = "12h"                   # or "24h"
+idle_home_seconds = 120         # back to Home after this long untouched (0 = never)
+
+# [weather] and [calendar] take the same settings as InkFrame's config.toml,
+# so those two sections can be copied across as they are.
+[weather]
+latitude = 40.7128              # set these to your location
+longitude = -74.0060
+location_name = "Home"
+units = "imperial"              # or "metric"
+interval_minutes = 15
+
+[calendar]
+# Google Calendar: Settings > the calendar > Integrate calendar >
+# "Secret address in iCal format". Treat that link like a password.
+sources = [
+  # "https://calendar.google.com/calendar/ical/.../basic.ics",
+  # { url = "https://calendar.google.com/calendar/ical/.../basic.ics", colour = "green" },
+]
+days = 7
+week_start = "sunday"           # or "monday"
+interval_minutes = 5
+
+[intercom]
+# The mcast intercom panel (mcast intercom serve). Leave url empty for no Intercom tab.
+url = ""                        # "http://127.0.0.1:8651" on the same Pi, or "https://pager.local:8651"
+token = ""                      # an operator access token: Settings > Access tokens on the panel
+ca_file = ""                    # for a panel with a self-signed certificate: a copy of its intercom-cert.pem
+verify_tls = true               # false skips the certificate check instead (home network only)
+zones = []                      # show text pages for these zone ids only, e.g. ["kitchen"]
+categories = []                 # show buttons from these categories only ("other" = uncategorized)
+
+[screen]
+backlight = "auto"              # "off" leaves the backlight alone
+brightness = 100                # percent
+dim_hours = []                  # e.g. [22, 7] dims the screen from 22:00 to 07:00
+dim_brightness = 10             # percent while dimmed
+wake_seconds = 60               # full brightness this long after a touch or a text page

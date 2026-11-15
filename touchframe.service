@@ -1,0 +1,15 @@
+[Unit]
+Description=TouchFrame home dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=@USER@
+WorkingDirectory=@DIR@
+ExecStart=@VENV@/bin/python -m touchframe
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

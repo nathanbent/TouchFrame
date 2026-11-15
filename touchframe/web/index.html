@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>TouchFrame</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<main>
+  <section id="home" class="view active">
+    <div class="top">
+      <div class="clock">
+        <div class="time"><span id="time">--:--</span><span id="ampm"></span></div>
+        <div class="date" id="date"></div>
+      </div>
+      <div class="now" id="now"></div>
+    </div>
+    <div class="hours" id="hours"></div>
+    <div class="bottom">
+      <div class="days" id="days"></div>
+      <div class="next" id="next"></div>
+    </div>
+  </section>
+
+  <section id="calendar" class="view">
+    <div class="month" id="month"></div>
+    <div class="agenda" id="agenda"></div>
+  </section>
+
+  <section id="intercom" class="view">
+    <div class="ic-head">
+      <div class="ic-status" id="ic-status"></div>
+      <button class="stop-all" id="stop-all" hidden>■ All stop</button>
+    </div>
+    <div class="ic-groups" id="ic-groups"></div>
+  </section>
+</main>
+
+<nav>
+  <button data-view="home" class="active">Home</button>
+  <button data-view="calendar">Calendar</button>
+  <button data-view="intercom" id="tab-intercom" hidden>Intercom</button>
+  <div class="playing" id="playing" hidden></div>
+  <div class="status" id="status"></div>
+</nav>
+
+<div class="page" id="page" hidden>
+  <div class="page-name" id="page-name"></div>
+  <div class="page-text" id="page-text"></div>
+  <div class="page-hint">Tap to close</div>
+</div>
+
+<div class="confirm" id="confirm" hidden>
+  <div class="confirm-box">
+    <div class="confirm-text" id="confirm-text"></div>
+    <div class="confirm-buttons">
+      <button id="confirm-no">Cancel</button>
+      <button id="confirm-yes" class="danger">Play</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
