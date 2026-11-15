@@ -50,7 +50,7 @@ class Streams:
         while not self._stopping:
             try:
                 proc = self._proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                                        text=True, errors="replace")
+                                        text=True, encoding="utf-8", errors="replace")
                 self.error = None
                 tail = (proc.stderr.read() or "").strip().splitlines()
                 proc.wait()
