@@ -115,7 +115,16 @@ function drawWeather() {
       h("div", { class: "when" }, clockText(new Date(hr.time), true)),
       icon(hr.kind, hr.day),
       h("div", { class: "t" }, deg(hr.temp)),
-      h("div", { class: "rain" }, hr.rain >= 10 ? `${hr.rain}%` : ""))));
+      h("div", { class: "rain" }, hr.rain >= 10 && [
+        h("span", { class: "rain-track" }, h("span", { class: "rain-fill", style: `width:${hr.rain}%` })),
+        `${hr.rain}%`]))));
+
+  // Under the date: sunrise and sunset, and the air.
+  const air = weather.air;
+  put($("sun"),
+    today && today.sunrise && today.sunset &&
+      h("span", {}, `Sun ${clockText(new Date(today.sunrise))} – ${clockText(new Date(today.sunset))}`),
+    air && h("span", { class: `air level-${air.level}` }, `Air ${air.index} · ${air.label}`));
 
   days.replaceChildren(...weather.days.slice(1, 5).map(d =>
     h("div", { class: "day" },
@@ -127,6 +136,32 @@ function drawWeather() {
   if (settings.theme === "auto") document.documentElement.dataset.theme = cur.day ? "light" : "dark";
   drawStatus();
 }
+
+// Weather Service alerts: a banner on Home, and the full words on a tap.
+function drawWarnings() {
+  const list = state ? state.warnings : [];
+  const el = $("warn");
+  el.hidden = !list.length;
+  $("home").classList.toggle("warned", list.length > 0);    // makes room for the banner
+  if (!list.length) return;
+  const first = list[0];
+  let until = "";
+  if (first.ends) {
+    const d = new Date(first.ends);
+    until = ` until ${clockText(d, true)}` + (ymd(d) === ymd(new Date()) ? "" : ` ${WEEKDAYS[d.getDay()].slice(0, 3)}`);
+  }
+  el.className = `warn-banner ${first.severity}`;
+  put(el, h("b", {}, `⚠ ${first.event}`), until, list.length > 1 && h("span", { class: "more" }, `+${list.length - 1} more`), h("span", { class: "more" }, "›"));
+  el.onclick = () => {
+    put($("detail-text"), list.map(a => [
+      h("h1", {}, a.event),
+      a.headline && h("p", { class: "muted" }, a.headline),
+      a.description && h("p", {}, a.description),
+      a.instruction && h("p", {}, h("b", {}, a.instruction))]));
+    $("detail").hidden = false;
+  };
+}
+$("detail-close").addEventListener("click", () => { $("detail").hidden = true; });
 
 // ---------- calendar ----------
 /** Events from now on, grouped by day, as InkFrame does: [[Date, [event...]]...]. */
@@ -589,7 +624,7 @@ function touched() {
   clearTimeout(idleTimer);
   if ($("saver").hidden) armSaver();
   if (settings.idle_home_seconds > 0) {
-    idleTimer = setTimeout(() => { $("confirm").hidden = true; show("home"); }, settings.idle_home_seconds * 1000);
+    idleTimer = setTimeout(() => { $("confirm").hidden = true; $("detail").hidden = true; show("home"); }, settings.idle_home_seconds * 1000);
   }
   if (Date.now() - lastWake > 20000) {
     lastWake = Date.now();
@@ -623,7 +658,7 @@ function listen() {
   es.addEventListener("state", e => {
     state = JSON.parse(e.data);
     state.at = Date.now();
-    drawIntercom(); drawAlerts(); drawLab(); drawPage(); drawStatus();
+    drawIntercom(); drawAlerts(); drawLab(); drawWarnings(); drawPage(); drawStatus();
   });
 }
 

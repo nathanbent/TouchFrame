@@ -6,7 +6,7 @@ A home dashboard for the Raspberry Pi Touch Display (7", 800×480): the time, we
 
 | Tab | |
 | --- | --- |
-| **Home** | The time and date, the weather now, the next 8 hours, the next 4 days, and what's coming up on the calendar |
+| **Home** | The time and date, sunrise and sunset, air quality, the weather now, the next 8 hours with the chance of rain, the next 4 days, weather alerts, and what's coming up on the calendar |
 | **Calendar** | This month, and the next 7 days of events |
 | **Alerts** | Text pages from the intercom, as they arrive and afterwards |
 | **Lab** | Proxmox, AdGuard, UniFi and Plex at a glance, Prometheus targets that are down and Zabbix problems. Shown when any of them is set |
@@ -41,6 +41,12 @@ sudo systemctl start touchframe
 Reboot, and the dashboard opens full screen. `install.sh` makes a Python environment in `.venv`, copies `config.example.toml` to `config.toml`, installs a service that starts on boot, and adds `kiosk.sh` to the desktop's autostart.
 
 `[weather]` and `[calendar]` in `config.toml` take the same settings as InkFrame's, so those sections can be copied across.
+
+## Weather
+
+The forecast and air quality come from Open-Meteo; neither needs a key. Under the date are today's sunrise and sunset and the air quality index (the US index with imperial units, the European one with metric), with a coloured dot and what it means in words.
+
+In the US, active National Weather Service alerts for your location show as a banner on Home, coloured by severity. Tap it for the full text. A new alert that is Severe or Extreme also takes over the screen like any other alert, and lands in the Alerts tab; an Extreme one (a tornado warning, say) is an emergency and stays up until tapped. Each alert takes over the screen once, however often the Weather Service updates it. `page_severity` under `[weather]` changes which do, and `warnings = false` turns them off.
 
 ## Intercom
 

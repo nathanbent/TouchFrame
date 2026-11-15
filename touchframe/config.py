@@ -19,6 +19,10 @@ DEFAULTS = {
         "location_name": "",
         "units": "imperial",        # or "metric"
         "interval_minutes": 15,
+        "air_quality": True,
+        "warnings": True,           # US National Weather Service alerts for this location
+        "page_severity": "severe",  # new ones this severe go up as pages: extreme, severe, moderate, off
+        "page_seconds": 120,
     },
     "calendar": {
         "sources": [],              # iCal links, or tables with url and colour

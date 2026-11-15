@@ -21,6 +21,7 @@ from .lab import Lab
 from .multicast import Multicast
 from .photos import Photos
 from .screen import Screen
+from .warnings import Warnings
 from .weather import Weather
 
 log = logging.getLogger("touchframe")
@@ -42,6 +43,7 @@ class App:
         self.multicast = Multicast(cfg, self.alerts, self.publish)
         self.lab = Lab(cfg, self.alerts, self.publish)
         self.hooks = Hooks(cfg, self.alerts)
+        self.warnings = Warnings(cfg, state, self.alerts, self.publish)
         self._subs = set()
         self._lock = threading.Lock()
 
@@ -49,6 +51,7 @@ class App:
         """Everything that changes by itself: the intercom, alerts and multicast groups."""
         return {"intercom": self.intercom.snapshot(), "alerts": self.alerts.snapshot(),
                 "multicast": self.multicast.snapshot(), "lab": self.lab.snapshot(),
+                "warnings": self.warnings.snapshot(),
                 "now_ms": int(time.time() * 1000)}
 
     def subscribe(self):
@@ -256,6 +259,7 @@ def main():
     app.intercom.start()
     app.multicast.start()
     app.lab.start()
+    app.warnings.start()
 
     Handler.app = app
     server = ThreadingHTTPServer((host or "127.0.0.1", int(port)), Handler)

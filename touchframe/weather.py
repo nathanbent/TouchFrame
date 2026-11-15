@@ -10,6 +10,13 @@ from datetime import datetime
 log = logging.getLogger(__name__)
 
 API = "https://api.open-meteo.com/v1/forecast"
+AIR_API = "https://air-quality-api.open-meteo.com/v1/air-quality"
+
+# Air quality index -> what it means: (up to, label, level 0 good .. 3 bad).
+US_AQI = [(50, "Good", 0), (100, "Moderate", 1), (150, "Unhealthy for some", 2),
+          (200, "Unhealthy", 3), (300, "Very unhealthy", 3), (10**6, "Hazardous", 3)]
+EU_AQI = [(20, "Good", 0), (40, "Fair", 0), (60, "Moderate", 1), (80, "Poor", 2),
+          (100, "Very poor", 3), (10**6, "Extremely poor", 3)]
 
 # WMO weather code -> (label, icon kind). The same table as InkFrame's.
 CODES = {
@@ -40,6 +47,7 @@ class Weather:
         self._at = 0.0
         self._raw = None
         self._stale = False
+        self._air = None
 
     def _fetch(self):
         params = {
@@ -58,6 +66,18 @@ class Weather:
         with urllib.request.urlopen(API + "?" + urllib.parse.urlencode(params), timeout=30) as resp:
             return json.load(resp)
 
+    def _fetch_air(self):
+        """The air quality index now: the US one with imperial units, the European with metric."""
+        index = "european_aqi" if self.metric else "us_aqi"
+        params = {"latitude": self.cfg["latitude"], "longitude": self.cfg["longitude"],
+                  "current": index, "timezone": "auto"}
+        with urllib.request.urlopen(AIR_API + "?" + urllib.parse.urlencode(params), timeout=30) as resp:
+            value = json.load(resp)["current"][index]
+        if value is None:
+            return None
+        label, level = next((l, lv) for top, l, lv in (EU_AQI if self.metric else US_AQI) if value <= top)
+        return {"index": round(value), "label": label, "level": level}
+
     def _load(self):
         """The raw forecast, fetched at most once per interval; the last good one if offline."""
         with self._lock:
@@ -68,6 +88,12 @@ class Weather:
                 self._raw, self._stale = self._fetch(), False
                 self.cache.write_text(json.dumps(self._raw))
                 self._at = now
+                if self.cfg["air_quality"]:
+                    try:
+                        self._air = self._fetch_air()
+                    except Exception as exc:
+                        log.warning("air quality fetch failed (%s)", exc)
+                        self._air = None    # better none than an old one
             except Exception as exc:
                 log.warning("weather fetch failed (%s); using the last forecast", exc)
                 if self._raw is None:
@@ -117,6 +143,7 @@ class Weather:
                 "kind": kind,
                 "day": bool(cur.get("is_day", 1)),
             },
+            "air": self._air,
             "hours": hours,
             "days": days,
         }

@@ -16,6 +16,10 @@ longitude = -74.0060
 location_name = "Home"
 units = "imperial"              # or "metric"
 interval_minutes = 15
+air_quality = true              # the air quality index, under the date
+warnings = true                 # US National Weather Service alerts for this location (nothing outside the US)
+page_severity = "severe"        # new alerts this severe also take over the screen: "extreme", "severe", "moderate" or "off"
+page_seconds = 120
 
 [calendar]
 # Google Calendar: Settings > the calendar > Integrate calendar >
