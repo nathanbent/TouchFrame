@@ -327,6 +327,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(app.photos.list())
             elif path.startswith("/photo/"):
                 self._send(app.photos.file(urllib.parse.unquote(path[7:])), "max-age=3600")
+            elif path.startswith("/received/"):
+                self._send(app.multicast.file(urllib.parse.unquote(path[10:])), "max-age=3600")
             elif path == "/photo-of-the-day":
                 self._send(app.photos.potd_image, "max-age=86400")
             elif path == "/api/events":

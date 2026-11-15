@@ -165,6 +165,9 @@ SECTIONS = [
             F("multicast.groups", "Multicast groups", "list", placeholder="239.192.3.1:11000", heading="Multicast"),
             F("multicast.name", "Name reported to senders", "text", "Empty uses the Pi's host name.", maxlen=60),
             F("multicast.hold_seconds", "A multicast page stays for", "int", min=3, max=3600, unit="seconds"),
+            F("multicast.pictures", "Groups that pictures are sent to", "list",
+              "A picture sent with mcast file send takes over the screen like a text alert.", placeholder="239.192.4.1:12000"),
+            F("multicast.picture_seconds", "A picture stays for", "int", min=3, max=3600, unit="seconds"),
             F("multicast.monitor", "Show the Streams tab", "bool",
               "Measures what arrives on these groups and on streams announced with SAP."),
             F("multicast.watch", "Other groups to measure", "list", "Your audio zones, say.", placeholder="239.192.2.1:10000"),
@@ -206,7 +209,7 @@ SECTIONS = [
         "description": "The services on the Lab tab. The tab appears when at least one is filled in.",
         "help": {
             "use": "adding the systems you want at a glance: Proxmox, AdGuard Home, UniFi, Plex, "
-                   "Prometheus and Zabbix.",
+                   "Sonarr, Radarr, Overseerr, SABnzbd, qBittorrent, Portainer, Prometheus and Zabbix.",
             "give": "each one's address and a read-only credential. Proxmox tokens are written "
                     "USER@REALM!TOKENID=SECRET and need the PVEAuditor role. Zabbix needs an API "
                     "token and version 6.4 or later.",
@@ -226,6 +229,14 @@ SECTIONS = [
                      F("username", "User name", "text"), F("password", "Password", "secret"),
                      F("site", "Site", "text", placeholder="default", default="default")),
             _service("plex", "Plex", F("token", "X-Plex-Token", "secret")),
+            _service("sonarr", "Sonarr", F("key", "API key", "secret")),
+            _service("radarr", "Radarr", F("key", "API key", "secret")),
+            _service("overseerr", "Overseerr", F("key", "API key", "secret")),
+            _service("sabnzbd", "SABnzbd", F("key", "API key", "secret")),
+            _service("qbittorrent", "qBittorrent",
+                     F("username", "User name", "text"), F("password", "Password", "secret")),
+            _service("portainer", "Portainer", F("key", "Access token", "secret"),
+                     F("environment", "Environment id", "int", "1 unless you have several.", min=1, max=100000, default=1)),
             F("prometheus.url", "Prometheus address", "text", "Empty turns it off.", url=True,
               placeholder="http://192.0.2.20:9090", heading="Prometheus"),
             F("prometheus.token", "Prometheus token", "secret", "Only if yours needs one."),

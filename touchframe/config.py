@@ -46,6 +46,8 @@ DEFAULTS = {
         "name": "",                 # reported to senders over RTCP ("" = the host name)
         "interface": "",            # IPv4 address to join on ("" = any)
         "hold_seconds": 20,         # how long a page from a channel stays up
+        "pictures": [],             # groups that pictures are sent to (mcast file send)
+        "picture_seconds": 30,      # how long a picture stays up
         "monitor": True,            # the Streams tab: measure what arrives (with groups or watch set)
         "watch": [],                # other groups to measure, e.g. audio zones
         "monitor_port": 8659,       # loopback port for the monitor TouchFrame starts
@@ -76,6 +78,12 @@ DEFAULTS = {
     "adguard": [],
     "unifi": [],
     "plex": [],
+    "sonarr": [],
+    "radarr": [],
+    "overseerr": [],
+    "sabnzbd": [],
+    "qbittorrent": [],
+    "portainer": [],
     "webhooks": {
         "token": "",                # "" = off
         "hold_seconds": 60,         # how long an alert stays up unless it says

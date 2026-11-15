@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 class Streams:
     def __init__(self, cfg):
         self.cfg = cfg["multicast"]
-        self.groups = list(dict.fromkeys(self.cfg["groups"] + self.cfg["watch"]))
+        self.groups = list(dict.fromkeys(self.cfg["groups"] + self.cfg["pictures"] + self.cfg["watch"]))
         self.enabled = bool(self.cfg["monitor"] and (self.groups or self.cfg["monitor_url"]))
         self.url = (self.cfg["monitor_url"] or f"http://127.0.0.1:{self.cfg['monitor_port']}").rstrip("/")
         self.error = None

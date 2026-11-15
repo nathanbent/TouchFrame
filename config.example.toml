@@ -55,6 +55,8 @@ mcast = "mcast"                 # the mcast command, or its full path
 name = ""                       # reported to senders over RTCP ("" = this Pi's host name)
 interface = ""                  # IPv4 address to join on ("" = any)
 hold_seconds = 20               # how long a page from a channel stays up
+pictures = []                   # groups that pictures are sent to with `mcast file send`, e.g. ["239.192.4.1:12000"]
+picture_seconds = 30            # how long a picture stays up
 monitor = true                  # the Streams tab: measure what arrives on these groups and SAP-announced streams
 watch = []                      # other groups to measure, e.g. your audio zones: ["239.192.2.1:10000"]
 monitor_port = 8659             # loopback port for the monitor TouchFrame starts
@@ -105,6 +107,31 @@ interval_seconds = 60
 # [[plex]]
 # url = "http://192.0.2.40:32400"
 # token = "..."                 # your X-Plex-Token
+
+# [[sonarr]]                    # and [[radarr]]: the same settings
+# url = "http://192.0.2.40:8989"
+# key = "..."                   # Settings > General > API Key
+
+# [[overseerr]]                 # or Jellyseerr
+# url = "http://192.0.2.40:5055"
+# key = "..."                   # Settings > General > API Key
+
+# [[sabnzbd]]
+# url = "http://192.0.2.40:8080"
+# key = "..."                   # Config > General > API Key
+
+# [[qbittorrent]]
+# name = "qBittorrent"
+# url = "http://192.0.2.40:8081"
+# username = "admin"            # leave both out if it trusts this Pi's address
+# password = "..."
+
+# [[portainer]]
+# name = "Docker 1"
+# url = "https://192.0.2.50:9443"
+# key = "..."                   # My account > Access tokens
+# environment = 1               # the number in the environment's URL in Portainer
+# verify_tls = false
 
 [webhooks]
 # Lets other systems put alerts on the screen. Needs listen = "0.0.0.0:8660" under [app].

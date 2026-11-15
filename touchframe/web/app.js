@@ -528,7 +528,9 @@ function drawPage() {
   $("page-hint").textContent = page.sticky ? "Tap to acknowledge" : "Tap to close";
   const text = $("page-text");
   text.replaceChildren(...page.text.map(line => h("div", {}, line)));
-  el.className = `page ${page.priority}`;
+  el.className = `page ${page.priority}${page.image ? " pictured" : ""}`;
+  $("page-image").hidden = !page.image;
+  $("page-image").style.backgroundImage = page.image ? `url("${page.image}")` : "";
   el.hidden = false;
   if (pageShown !== page.id) {
     // A new one: flash, so it's noticed from across the room.
@@ -537,7 +539,7 @@ function drawPage() {
     endSaver();
   } else el.classList.add("arrive");
   // The biggest type that fits.
-  let size = 6;
+  let size = page.image ? 1.2 : 6;
   do { text.style.fontSize = `${size}rem`; size -= .25; } while (size > 1 && text.scrollHeight > text.clientHeight);
   el.onclick = () => post(`/api/alerts/close/${page.id}`).catch(e => toast(e.message));
   const next = Math.min(...pages.filter(p => p.until_ms && !p.sticky).map(p => p.until_ms));
@@ -549,6 +551,8 @@ function ago(ms) {
   if (ymd(d) === today) return clockText(d);
   return `${WEEKDAYS[d.getDay()].slice(0, 3)} ${d.getDate()} ${clockText(d)}`;
 }
+
+const showPicture = src => detail(h("img", { class: "detail-image", src, alt: "" }));
 
 function drawAlerts() {
   if (!state) return;
@@ -567,6 +571,7 @@ function drawAlerts() {
   const list = $("al-list");
   list.replaceChildren(...al.history.map(a =>
     h("div", { class: `alert card ${a.priority}${a.seen ? "" : " unseen"}` },
+      a.image && h("img", { class: "al-thumb", src: a.image, alt: "", onclick: () => showPicture(a.image) }),
       h("div", { class: "al-when" }, ago(a.at_ms)),
       h("div", { class: "al-body" },
         h("div", { class: "al-text" }, a.text.join(" ")),
@@ -645,8 +650,32 @@ function serviceTiles(t) {
       t.streams.length > 3 ? [h("div", { class: "ltile-foot" }, `and ${t.streams.length - 3} more`)] : [])
       : h("div", { class: "muted" }, "Nothing playing")))];
   }
+  if (t.kind === "sonarr" || t.kind === "radarr") {
+    return [tile(t.kind, t.name, t, t.total !== undefined && [
+      h("div", { class: "stats" }, stat(String(t.wanted), "wanted"), stat(String(t.queued), "queued")),
+      h("div", { class: "ltile-foot" }, `${num(t.total)} ${t.noun}`)])];
+  }
+  if (t.kind === "overseerr") {
+    return [tile(t.kind, t.name, t, t.pending !== undefined && [
+      h("div", { class: "stats" }, stat(String(t.pending), "pending"), stat(String(t.processing), "processing")),
+      h("div", { class: "ltile-foot" }, t.pending ? mark(false, `${t.pending} waiting for an answer`) : `${num(t.available)} available`)])];
+  }
+  if (t.kind === "sabnzbd" || t.kind === "qbittorrent") {
+    const sab = t.kind === "sabnzbd";
+    return [tile(t.kind, t.name, t, t.down !== undefined && [
+      h("div", { class: "stats" }, stat(speed(t.down), "down"), sab ? stat(String(t.queued), "queued") : stat(speed(t.up), "up")),
+      h("div", { class: "ltile-foot" }, sab ? (t.paused ? "Paused" : t.queued ? `${t.left} left` : "Idle") : `${t.leeching} downloading${DOT}${t.seeding} seeding`)])];
+  }
+  if (t.kind === "portainer") {
+    return [tile(t.kind, t.name, t, t.running !== undefined && [
+      h("div", { class: "stats" }, stat(String(t.running), "running"), stat(String(t.stopped), "stopped")),
+      h("div", { class: "ltile-foot" }, t.unhealthy.length ? mark(false, `unhealthy: ${t.unhealthy.join(", ")}`) : t.stopped ? "" : mark(true, "All running"))])];
+  }
   return [];
 }
+
+/** Bytes a second, in words. */
+const speed = b => b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB/s` : b >= 1024 ? `${Math.round(b / 1024)} kB/s` : "0";
 
 const openProblems = () => go("problems");
 
