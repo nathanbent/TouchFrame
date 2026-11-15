@@ -62,6 +62,11 @@ DEFAULTS = {
         "alert_seconds": 60,
         "interval_seconds": 60,
     },
+    # Lists of tables ([[proxmox]] ...), so there can be several of each; see services.py.
+    "proxmox": [],
+    "adguard": [],
+    "unifi": [],
+    "plex": [],
     "webhooks": {
         "token": "",                # "" = off
         "hold_seconds": 60,         # how long an alert stays up unless it says

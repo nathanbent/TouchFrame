@@ -9,7 +9,7 @@ A home dashboard for the Raspberry Pi Touch Display (7", 800×480): the time, we
 | **Home** | The time and date, the weather now, the next 8 hours, the next 4 days, and what's coming up on the calendar |
 | **Calendar** | This month, and the next 7 days of events |
 | **Alerts** | Text pages from the intercom, as they arrive and afterwards |
-| **Lab** | Prometheus targets that are down and Zabbix problems. Shown when `[prometheus]` or `[zabbix]` is set |
+| **Lab** | Proxmox, AdGuard, UniFi and Plex at a glance, Prometheus targets that are down and Zabbix problems. Shown when any of them is set |
 | **Intercom** | A button for each announcement on the intercom panel. Shown when `[intercom]` is set |
 
 The screen goes back to Home after two minutes untouched.
@@ -142,7 +142,7 @@ Other machines can only post webhooks. They can't open the dashboard (which has 
 
 ![The Lab tab](docs/lab.png)
 
-The Lab tab shows up when either of these is set:
+The Lab tab shows up when any of these is set in `config.toml`. **Overview** has a tile for each; **Problems** lists what Prometheus and Zabbix say is wrong (tap their tiles to get there).
 
 ```toml
 [prometheus]
@@ -151,14 +151,43 @@ url = "http://10.0.30.10:9090"
 [zabbix]
 url = "http://10.0.30.20:180"
 token = "..."
+
+[[proxmox]]
+name = "Cluster"
+url = "https://10.0.30.5:8006"
+token = "touchframe@pve!panel=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+verify_tls = false
+
+[[adguard]]
+name = "AdGuard 1"
+url = "http://10.0.30.2"
+username = "admin"
+password = "..."
+
+[[unifi]]
+url = "https://10.0.30.1"
+key = "..."
+verify_tls = false
+
+[[plex]]
+url = "http://10.0.30.40:32400"
+token = "..."
 ```
 
+The ones in double brackets can be repeated, for two AdGuards or two Proxmox clusters. `verify_tls = false` is for a self-signed certificate.
+
+- **Proxmox:** a tile for each node with its CPU and memory (the bar turns amber from 75% and red from 90%) and how many of its VMs and containers are running. One address covers a whole cluster. Make an API token under Datacenter → Permissions → API Tokens, and give it (and its user) the `PVEAuditor` role on `/`. The token is written `USER@REALM!TOKENID=SECRET`. `nodes = ["pve1"]` shows only those.
+- **AdGuard Home:** DNS queries, the share blocked, and the average answer time, with a warning if protection is switched off.
+- **UniFi:** Wi-Fi and wired clients, access points, and whether the internet is up. Sign in with an API key (UniFi OS consoles), or the `username` and `password` of a local view-only user.
+- **Plex:** what's playing, for whom, and how far in. The token is your `X-Plex-Token`.
 - **Prometheus:** how many scrape targets are up, and a list of the ones that aren't.
 - **Zabbix:** current problems by severity, worst first, with the host and how long each has been going. Acknowledged ones are dimmed. It needs Zabbix 6.4 or later and an API token (Users → API tokens); a read-only user is enough. Problems on disabled hosts and triggers are left out, as on Zabbix's own dashboard.
 - The tab's badge counts High and Disaster problems.
 - `alert_severity = 4` under `[zabbix]` also puts each *new* High or Disaster problem on the screen as an alert (a Disaster as an emergency). Problems already there when TouchFrame starts don't.
 
-Both are checked once a minute. If one stops answering, its last numbers stay up and the corner says "Lab offline".
+![Problems](docs/lab-problems.png)
+
+Prometheus and Zabbix are checked once a minute, the tiles every 30 seconds (Plex every 15; `interval_seconds` on each). If one stops answering, its tile says "offline" with its last numbers still up, and the corner says "Lab offline".
 
 ## Screensaver
 
@@ -208,6 +237,7 @@ touchframe/
   alerts.py     the alerts on screen, and their history
   hooks.py      alerts from webhooks (and Grafana)
   lab.py        Prometheus targets and Zabbix problems
+  services.py   the Lab tab's tiles: Proxmox, AdGuard, UniFi, Plex
   photos.py     the screensaver's photos
   screen.py     backlight dimming
   web/          the page (index.html, app.css, app.js)

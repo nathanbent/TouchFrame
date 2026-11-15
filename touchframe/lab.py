@@ -113,12 +113,18 @@ class Zabbix:
 
 class Lab:
     def __init__(self, cfg, alerts, on_change):
-        self.sources = [s for s in (Prometheus(cfg), Zabbix(cfg, alerts)) if s.configured]
-        self.interval = {s.name: max(15, cfg[s.name]["interval_seconds"]) for s in self.sources}
+        from . import services
+        self.problems = [s for s in (Prometheus(cfg), Zabbix(cfg, alerts)) if s.configured]
+        self.tiles = services.load(cfg)
         self.on_change = on_change
-        self.enabled = bool(self.sources)
-        self._state = {s.name: {"ok": None, "error": None} for s in self.sources}
+        self.enabled = bool(self.problems or self.tiles)
+        self._state = {id(s): {"ok": None, "error": None} for s in self.problems + self.tiles}
         self._lock = threading.Lock()
+        self._cfg = cfg
+
+    def _interval(self, source):
+        cfg = self._cfg[source.name] if source in self.problems else source.cfg
+        return max(10, cfg["interval_seconds"])
 
     def _run(self, source):
         while True:
@@ -127,18 +133,20 @@ class Lab:
             except Exception as exc:
                 log.warning("%s: %s", source.name, exc)
                 # Keep the last numbers on screen, marked as old.
-                new = {**self._state[source.name], "ok": False, "error": str(exc)[:200]}
+                new = {**self._state[id(source)], "ok": False, "error": str(exc)[:200]}
             with self._lock:
-                changed = new != self._state[source.name]
-                self._state[source.name] = new
+                changed = new != self._state[id(source)]
+                self._state[id(source)] = new
             if changed:
                 self.on_change()
-            time.sleep(self.interval[source.name])
+            time.sleep(self._interval(source))
 
     def start(self):
-        for s in self.sources:
+        for s in self.problems + self.tiles:
             threading.Thread(target=self._run, args=(s,), name=s.name, daemon=True).start()
 
     def snapshot(self):
         with self._lock:
-            return dict(self._state)
+            out = {s.name: self._state[id(s)] for s in self.problems}
+            out["tiles"] = [{"kind": s.kind, "name": s.name, **self._state[id(s)]} for s in self.tiles]
+            return out

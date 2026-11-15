@@ -10,14 +10,14 @@ function h(tag, props, ...kids) {
     else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
     else if (v !== null && v !== undefined && v !== false) el.setAttribute(k, v === true ? "" : v);
   }
-  for (const kid of kids.flat()) {
+  for (const kid of kids.flat(Infinity)) {
     if (kid !== null && kid !== undefined && kid !== false) el.append(kid);
   }
   return el;
 }
 
 /** Replace an element's children, leaving out the ones that aren't there. */
-const put = (el, ...kids) => el.replaceChildren(...kids.flat().filter(k => k !== null && k !== undefined && k !== false && k !== ""));
+const put = (el, ...kids) => el.replaceChildren(...kids.flat(Infinity).filter(k => k !== null && k !== undefined && k !== false && k !== ""));
 
 let settings = { theme: "dark", clock: "12h", idle_home_seconds: 120, intercom: false, alerts: false };
 let weather = null;
@@ -371,11 +371,98 @@ function age(ms) {
   return `${Math.round(mins / 1440)}d`;
 }
 
+let labView = "tiles";
+for (const b of $("lab-switch").children) b.addEventListener("click", () => { labView = b.dataset.lab; drawLab(); });
+
+const num = n => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}k` : n.toLocaleString();
+
+/** A labelled bar from 0 to 100%. The number carries the value; the bar turns
+ *  amber, then red, only as a warning that it's nearly full. */
+function meter(label, percent) {
+  const level = percent >= 90 ? " serious" : percent >= 75 ? " warn" : "";
+  return h("div", { class: "meter" },
+    h("div", { class: "meter-text" }, h("span", {}, label), h("b", {}, `${percent}%`)),
+    h("div", { class: "meter-track" }, h("div", { class: `meter-fill${level}`, style: `width:${Math.max(1, Math.min(100, percent))}%` })));
+}
+
+/** A number with its label under it. */
+const stat = (value, label) => h("div", { class: "stat" }, h("b", {}, value), h("span", {}, label));
+
+function tile(kind, name, t, ...body) {
+  const waiting = t && t.ok === null;
+  return h("div", { class: `ltile ${kind}` },
+    h("div", { class: "ltile-name" }, h("span", {}, name),
+      t && t.ok === false && h("span", { class: "state bad" }, "⚠ offline")),
+    waiting ? h("div", { class: "muted" }, "Checking…") : body,
+    t && t.ok === false && !body.flat(Infinity).some(Boolean) && h("div", { class: "lab-error" }, t.error));
+}
+
+function serviceTiles(t) {
+  if (t.kind === "proxmox") {
+    if (!t.nodes) return [tile("proxmox", t.name, t)];
+    return t.nodes.map(n => tile("proxmox", n.name, t,
+      n.online ? [meter("CPU", n.cpu), meter("Memory", n.mem)] : h("div", { class: "state bad" }, "⚠ Node offline"),
+      h("div", { class: "ltile-foot" }, `${n.vms[0]}/${n.vms[1]} VMs` + (n.lxc[1] ? ` · ${n.lxc[0]}/${n.lxc[1]} LXC` : ""))));
+  }
+  if (t.kind === "adguard") {
+    return [tile("adguard", t.name, t, t.queries !== undefined && [
+      h("div", { class: "stats" }, stat(num(t.queries), "queries"), stat(`${t.percent}%`, "blocked")),
+      h("div", { class: "ltile-foot" }, t.protecting ? `${t.latency_ms} ms average` : h("span", { class: "state bad" }, "⚠ Protection is off"))])];
+  }
+  if (t.kind === "unifi") {
+    const up = t.wan === "ok";
+    return [tile("unifi", t.name, t, t.aps !== undefined && [
+      h("div", { class: "stats" }, stat(String(t.wifi_clients), "Wi-Fi"), stat(String(t.wired_clients), "wired"), stat(String(t.aps), t.aps === 1 ? "AP" : "APs")),
+      h("div", { class: "ltile-foot" },
+        t.wan ? h("span", { class: `state ${up ? "good" : "bad"}` }, up ? "✓ Internet up" : `⚠ Internet: ${t.wan}`) : "",
+        t.aps_down ? h("span", { class: "state bad" }, ` · ⚠ ${t.aps_down} AP down`) : "")])];
+  }
+  if (t.kind === "plex") {
+    return [tile("plex", t.name, t, t.streams && (t.streams.length ? t.streams.slice(0, 3).map(s =>
+      h("div", { class: "stream" },
+        h("div", { class: "stream-title" }, s.title),
+        h("div", { class: "stream-sub" }, [s.user, s.state === "paused" ? "paused" : null, s.transcoding ? "transcoding" : null].filter(Boolean).join(" · ")),
+        h("div", { class: "meter-track" }, h("div", { class: "meter-fill", style: `width:${Math.round(s.progress * 100)}%` })))).concat(
+      t.streams.length > 3 ? [h("div", { class: "ltile-foot" }, `and ${t.streams.length - 3} more`)] : [])
+      : h("div", { class: "muted" }, "Nothing playing")))];
+  }
+  return [];
+}
+
+const openProblems = () => { labView = "problems"; drawLab(); };
+
+function promTile(p) {
+  const down = p.total === undefined ? 0 : p.total - p.up;
+  const el = tile("link", "Prometheus", p, p.total !== undefined && [
+    h("div", { class: "stats" }, stat(`${p.up}/${p.total}`, "targets up")),
+    h("div", { class: "ltile-foot" }, down ? h("span", { class: "state bad" }, `⚠ ${down} down ›`) : h("span", { class: "state good" }, "✓ All up"))]);
+  el.addEventListener("click", openProblems);
+  return el;
+}
+
+function zbxTile(z) {
+  const el = tile("link", "Zabbix", z, z.counts && [
+    h("div", { class: "chips" }, [5, 4, 3, 2].filter(s => z.counts[s]).map(s => h("span", { class: `chip sev-${s}` }, `${z.counts[s]} ${SEVERITIES[s]}`))),
+    h("div", { class: "ltile-foot" }, z.total ? `${z.total} problems ›` : h("span", { class: "state good" }, "✓ No problems"))]);
+  el.addEventListener("click", openProblems);
+  return el;
+}
+
 function drawLab() {
   $("tab-lab").hidden = !settings.lab;
   if (!state || !settings.lab) return;
-  const prom = state.lab.prometheus, zbx = state.lab.zabbix;
+  const prom = state.lab.prometheus, zbx = state.lab.zabbix, tiles = state.lab.tiles;
   let worst = 0;
+
+  // Overview (tiles) and Problems (the lists); the switch shows when there are both.
+  const hasProblems = !!(prom || zbx);
+  if (!tiles.length) labView = "problems";
+  else if (!hasProblems) labView = "tiles";
+  $("lab-switch").hidden = !(tiles.length && hasProblems);
+  for (const b of $("lab-switch").children) b.classList.toggle("active", b.dataset.lab === labView);
+  $("lab-tiles").hidden = labView !== "tiles";
+  $("lab-problems").hidden = labView !== "problems";
+  put($("lab-tiles"), tiles.flatMap(serviceTiles), prom && promTile(prom), zbx && zbxTile(zbx));
 
   $("lab-prom").hidden = !prom;
   if (prom) {
@@ -474,7 +561,7 @@ function drawStatus() {
   if (calendar && calendar.stale) notes.push("Calendar offline");
   if (state && state.intercom.enabled && !state.intercom.connected) notes.push("Intercom offline");
   if (state && state.multicast.some(g => !g.listening)) notes.push("Multicast off");
-  if (state && Object.values(state.lab).some(s => s.ok === false)) notes.push("Lab offline");
+  if (state && [state.lab.prometheus, state.lab.zabbix, ...state.lab.tiles].some(s => s && s.ok === false)) notes.push("Lab offline");
   const where = weather && weather.location;
   $("status").textContent = notes.join(" · ") || where || "";
 }

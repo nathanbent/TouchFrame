@@ -65,6 +65,34 @@ alert_severity = 0              # new problems this severe also go up as alerts 
 alert_seconds = 60
 interval_seconds = 60
 
+# Tiles on the Lab tab. Each can be repeated ([[proxmox]] twice for two clusters).
+# Uncomment the ones you run. verify_tls = false is for self-signed certificates.
+
+# [[proxmox]]
+# name = "Cluster"
+# url = "https://10.0.30.5:8006"
+# token = "touchframe@pve!panel=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"   # USER@REALM!TOKENID=SECRET, with the PVEAuditor role
+# verify_tls = false
+# nodes = []                    # only these nodes ([] = all)
+
+# [[adguard]]
+# name = "AdGuard 1"
+# url = "http://10.0.30.2"
+# username = "admin"
+# password = "..."
+
+# [[unifi]]
+# url = "https://10.0.30.1"
+# key = "..."                   # an API key (UniFi OS: Settings > Control Plane > Integrations), or:
+# username = "touchframe"       # a local, view-only user
+# password = "..."
+# site = "default"
+# verify_tls = false
+
+# [[plex]]
+# url = "http://10.0.30.40:32400"
+# token = "..."                 # your X-Plex-Token
+
 [webhooks]
 # Lets other systems put alerts on the screen. Needs listen = "0.0.0.0:8660" under [app].
 token = ""                      # a long random string; "" = off
