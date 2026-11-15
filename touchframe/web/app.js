@@ -1110,6 +1110,71 @@ document.addEventListener("keydown", e => {
   window.addEventListener("click", e => {
     if (performance.now() < swallow) { e.stopPropagation(); e.preventDefault(); }
   }, true);
+
+  // A touchscreen the desktop hands on as a mouse (Raspberry Pi OS does, unless
+  // told otherwise) can swipe the pages, since that is done here, but the
+  // browser won't scroll a list for a dragged mouse. So do that here too:
+  // drag a list and it follows, let go while moving and it coasts.
+  let pan = null, coast = 0;
+  const at = p => p.side ? p.el.scrollLeft : p.el.scrollTop;
+  const to = (p, v) => { if (p.side) p.el.scrollLeft = v; else p.el.scrollTop = v; };
+  const rest = p => { if (p.side) p.el.style.scrollSnapType = ""; };
+
+  document.addEventListener("pointerdown", e => {
+    cancelAnimationFrame(coast);
+    if (pan) rest(pan);
+    pan = null;
+    if (e.pointerType !== "mouse" || e.button !== 0 || e.target.closest("input")) return;
+    if (!e.target.closest(".scroll, .hscroll")) return;
+    pan = { id: e.pointerId, target: e.target, x: e.clientX, y: e.clientY, el: null, side: false, from: 0, last: 0, lastT: 0, v: 0 };
+  }, true);
+
+  document.addEventListener("pointermove", e => {
+    if (!pan || e.pointerId !== pan.id) return;
+    if (!e.buttons) return done(e);         // let go somewhere we didn't see
+    const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+    if (!pan.el) {
+      // The same rule as the page swipe above, so the two never both take a drag.
+      const side = !(Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx));
+      if (side && Math.abs(dx) < 10) return;
+      const el = pan.target.closest(side ? ".hscroll" : ".scroll");
+      if (!el) { pan = null; return; }
+      Object.assign(pan, { el, side, x: e.clientX, y: e.clientY, last: side ? e.clientX : e.clientY, lastT: e.timeStamp });
+      pan.from = at(pan);
+      if (side) el.style.scrollSnapType = "none";   // or each step would snap back
+      return;
+    }
+    const pos = pan.side ? e.clientX : e.clientY;
+    if (e.timeStamp > pan.lastT) {
+      pan.v = .7 * (pos - pan.last) / (e.timeStamp - pan.lastT) + .3 * pan.v;
+      pan.last = pos; pan.lastT = e.timeStamp;
+    }
+    to(pan, pan.from - (pan.side ? dx : dy));
+    getSelection()?.removeAllRanges();      // text that can be selected shouldn't be, by this
+  }, true);
+
+  const done = e => {
+    if (!pan || e.pointerId !== pan.id) return;
+    const p = pan;
+    pan = null;
+    if (!p.el) return;
+    swallow = performance.now() + 350;      // this was a scroll, not a press
+    if (e.timeStamp - p.lastT > 80 || Math.abs(p.v) < .1) return rest(p);
+    let v = p.v, then = performance.now();
+    const glide = now => {
+      const dt = Math.min(now - then, 50), was = at(p);
+      then = now;
+      to(p, was - v * dt);
+      v *= Math.pow(.95, dt / 16);
+      if (Math.abs(v) < .03 || Math.abs(at(p) - was) < .5 && dt > 0) return rest(p);
+      coast = requestAnimationFrame(glide);
+    };
+    coast = requestAnimationFrame(glide);
+    // What coasts is stopped by the next press, which also puts the snap back.
+    pan = { id: -1, el: p.el, side: p.side };
+  };
+  document.addEventListener("pointerup", done, true);
+  document.addEventListener("pointercancel", done, true);
 }
 
 $("stop-all").append(ico("stop", "solid small"), "All stop");
