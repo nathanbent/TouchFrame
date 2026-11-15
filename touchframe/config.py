@@ -101,6 +101,8 @@ DEFAULTS = {
         "nasa_topics": ["nebula", "galaxy", "star cluster", "supernova remnant",
                         "Earth observation", "Saturn", "Jupiter", "aurora"],
         "nasa_count": 30,           # how many are kept; a new set each day
+        "icloud_album": "",         # an iCloud shared album's public link ("" = none)
+        "icloud_count": 200,        # at most this many of its photos are kept
         "clock": True,
     },
     "screen": {

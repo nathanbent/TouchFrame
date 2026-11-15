@@ -287,7 +287,7 @@ Prometheus and Zabbix are checked once a minute, the tiles every 30 seconds (Ple
 
 ## Screensaver
 
-After 5 minutes untouched, photos from `~/Pictures/touchframe` (subfolders too) fill the screen, a new one every 30 seconds in a random order, with the time in the corner. Wikimedia Commons' Picture of the Day is added to them, with its caption, and so are [space photos from NASA](#space-photos). A tap brings the dashboard back, and an alert shows over the photos.
+After 5 minutes untouched, photos from `~/Pictures/touchframe` (subfolders too) fill the screen, a new one every 30 seconds in a random order, with the time in the corner. Wikimedia Commons' Picture of the Day is added to them, with its caption, and so are [space photos from NASA](#space-photos) and, if you give its link, [an iCloud shared album](#an-icloud-shared-album). A tap brings the dashboard back, and an alert shows over the photos.
 
 ```bash
 scp *.jpg pi@<pi-address>:~/Pictures/touchframe/
@@ -306,7 +306,21 @@ nasa_topics = ["nebula", "galaxy", "Saturn", "aurora"]   # searches of images.na
 nasa_count = 30
 ```
 
-A day's set is drawn from four of the topics, picked at random. Only wide photos are taken, and only from JPL, Goddard and Johnson, which keeps out most of the library's press events and hangars; an annotated figure still turns up now and then. The topics, the count and the switch are also on the settings page, and the switch is on the Settings tab.
+A day's set is drawn from four of the NASA topics, picked at random. Only wide photos are taken, and only from JPL, Goddard and Johnson, which keeps out most of the library's press events and hangars; an annotated figure still turns up now and then. The topics, the count and the switch are also on the settings page, and the switch is on the Settings tab.
+
+### An iCloud shared album
+
+Photos from an iCloud shared album can be mixed in too, so they can be added from a phone. In Photos, open the shared album, turn on **Public Website** in its settings, and copy the link. Then paste it into the settings page (Screensaver, *iCloud shared album*), or put it in `config.toml`:
+
+```toml
+[screensaver]
+icloud_album = "https://www.icloud.com/sharedalbum/#B0aBcDeFgHiJkL"
+icloud_count = 200      # at most this many are kept; a bigger album is drawn from at random
+```
+
+The album is looked at once an hour: new photos are fetched, and ones taken out of the album are removed from the Pi. Videos are left out. A photo's caption in the album is shown with it. If Apple can't be reached, the photos already fetched stay up.
+
+Anyone with the link can see the album, so TouchFrame treats it like a password: the settings page never shows it back. Apple does not document this way of reading a public album, so it may stop working if they change it.
 
 ## Updating
 
