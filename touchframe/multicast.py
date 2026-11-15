@@ -24,6 +24,16 @@ GATHER = 0.6        # lines this close together are one page
 NO_END = 600        # a page whose end never comes is taken down after this many seconds
 PANEL_ID = re.compile(r"^(\d+)\.(\d+)$")     # the intercom panel's page ids: RUN.AT_MS
 
+# What a page is rides in its text, as strings between two control characters
+# (mcast-tools' docs/text-page-metadata.md). mcast from 0.5.13 takes them out and
+# says what they said (--json); an older one prints them as they came, and they
+# are read here instead, so a screen with an old mcast shows the same page.
+ELEMENT = re.compile("\x98([^\x98\x9c]*)\x9c")
+ESCAPES = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+CONTROLS = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+PRIORITIES = {"n": "normal", "h": "high", "e": "emergency"}
+NO_SHOW = 3         # a page whose "show" never comes goes up after this many seconds
+
 
 class Group:
     def __init__(self, group, cfg, alerts, on_change):
@@ -33,6 +43,8 @@ class Group:
         self.on_change = on_change
         self.status = {"group": group, "listening": False, "error": None, "last_ms": None, "pages": 0}
         self._holds = {}            # page id -> seconds it stays up once cleared
+        self._open = None           # the page an old mcast is printing, line by line
+        self._open_timer = None
         self._lines = []
         self._sender = None
         self._timer = None
@@ -80,6 +92,7 @@ class Group:
             sender, sep, text = line.partition(": ")
             if not sep:
                 sender, text = None, line
+            text = self._printed(sender, text)
         if not text.strip():
             return
         with self._lock:
@@ -93,6 +106,58 @@ class Group:
             self._timer = threading.Timer(GATHER, self._flush)
             self._timer.daemon = True
             self._timer.start()
+
+    def _printed(self, sender, text):
+        """A line as an older mcast printed it: take out the page elements in it and
+        act on them. Returns the text that is not part of a page (often none)."""
+        parts = ELEMENT.split(text)
+        plain = []
+        for i, part in enumerate(parts):
+            if i % 2:
+                self._element(sender, part)
+                continue
+            part = CONTROLS.sub("", ESCAPES.sub("", part)).strip()
+            if not part:
+                continue
+            with self._lock:
+                if self._open is not None and self._open["from"] == sender:
+                    self._open["text"].append(part)
+                    continue
+            plain.append(part)
+        return " ".join(plain)
+
+    def _element(self, sender, body):
+        """One page element: "mc1 page ID PRIORITY HOLD name", "mc1 show ID" or
+        "mc1 clear ID [now]". Anything else between the two characters is ignored."""
+        words = body.split(" ")
+        if len(words) < 3 or words[0] != "mc1":
+            return
+        kind, page_id = words[1], words[2]
+        if kind == "page" and len(words) >= 5 and words[3] in PRIORITIES and words[4].isdigit():
+            self._close_open()          # one whose "show" was lost goes up as it is
+            with self._lock:
+                self._open = {"id": page_id, "from": sender, "name": " ".join(words[5:]),
+                              "priority": PRIORITIES[words[3]], "hold_s": int(words[4]), "text": []}
+                self._open_timer = threading.Timer(NO_SHOW, self._close_open)
+                self._open_timer.daemon = True
+                self._open_timer.start()
+        elif kind == "show" and len(words) == 3:
+            with self._lock:
+                mine = self._open is not None and self._open["id"] == page_id
+            if mine:
+                self._close_open()
+        elif kind == "clear" and (len(words) == 3 or words[3:] == ["now"]):
+            self._clear({"id": page_id, "now": len(words) == 4})
+
+    def _close_open(self):
+        """The page being printed is complete (or as complete as it will get): show it."""
+        with self._lock:
+            page, self._open = self._open, None
+            if self._open_timer:
+                self._open_timer.cancel()
+                self._open_timer = None
+        if page:
+            self._page(page)
 
     def _key(self, page_id):
         return f"multicast:{self.group}:{page_id}"
