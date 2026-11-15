@@ -7,7 +7,8 @@ A home dashboard for the Raspberry Pi Touch Display (7", 800×480): the time, we
 | Tab | |
 | --- | --- |
 | **Home** | The time and date, sunrise and sunset, air quality, the weather now, the next 8 hours with the chance of rain, the next 4 days, weather alerts, and what's coming up on the calendar |
-| **Calendar** | This month, and the next 7 days of events |
+| **Calendar** | This month and the next 7 days of events. Tap a day for that day; the arrows turn to other months |
+| **Streams** | What this Pi is receiving over multicast: rate, loss, jitter, TTL. Shown when `[multicast]` is set |
 | **Alerts** | Text pages from the intercom, as they arrive and afterwards |
 | **Lab** | Proxmox, AdGuard, UniFi and Plex at a glance, Prometheus targets that are down and Zabbix problems. Shown when any of them is set |
 | **Intercom** | A button for each announcement on the intercom panel. Shown when `[intercom]` is set |
@@ -114,6 +115,14 @@ On the panel, add the same group to a zone's **Text displays**. Anything else th
 - With both routes set, the same page arriving both ways is shown once, and the Alerts tab says it came "via panel · via multicast 239.192.3.1:11000". A page that lists only one of them didn't arrive by the other, which is the thing to look for when testing the network.
 - The Alerts tab shows each group, whether it's being listened to, and how many pages it has heard.
 
+### Streams
+
+![The Streams tab](docs/streams.png)
+
+With `[multicast]` groups set, the **Streams** tab shows what this Pi is actually receiving, updated every two seconds while it's open: each stream's bit rate, packet loss, jitter, TTL and DSCP, and for audio its codec and level. It lists your text groups, any groups under `watch` (your audio zones, say), and every stream announced on the network with SAP. A group with nothing arriving says "Nothing heard yet", which is what a multicast routing problem looks like. Below are the receivers reporting on those groups, this screen among them.
+
+The measuring is mcast-tools' own monitor: TouchFrame starts `mcast serve` for it on a loopback port, with no web page. If an mcast server already runs on the Pi, point `monitor_url` at it instead. `monitor = false` turns the tab off.
+
 ### From other systems (webhooks)
 
 Anything that can send an HTTP request can put an alert on the screen. Set a token, and listen on the network:
@@ -205,6 +214,10 @@ scp *.jpg nathan@<pi-address>:~/Pictures/touchframe/
 
 JPEG, PNG, WebP and GIF work. Photos are scaled down the first time they're shown, so big ones from a phone are fine. With no photos and `picture_of_the_day = false`, the dashboard just stays up. Settings are under `[screensaver]`.
 
+## Settings on the screen
+
+The gear in the corner opens a small panel: a brightness slider (with a backlight TouchFrame can set), the theme, *Show photos now*, *Send a test alert* and *Reload*, and the Pi's name, address and TouchFrame's version. Brightness and theme set here are remembered, and win over `config.toml`.
+
 ## Screen brightness
 
 ```toml
@@ -240,6 +253,7 @@ touchframe/
   agenda.py     events from iCal links
   intercom.py   the link to the mcast intercom panel
   multicast.py  text pages from multicast groups, by `mcast text recv`
+  streams.py    the Streams tab, from mcast-tools' monitor
   alerts.py     the alerts on screen, and their history
   hooks.py      alerts from webhooks (and Grafana)
   lab.py        Prometheus targets and Zabbix problems

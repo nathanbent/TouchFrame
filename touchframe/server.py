@@ -6,6 +6,8 @@ import json
 import logging
 import mimetypes
 import queue
+import socket
+import subprocess
 import threading
 import time
 import urllib.parse
@@ -21,6 +23,7 @@ from .lab import Lab
 from .multicast import Multicast
 from .photos import Photos
 from .screen import Screen
+from .streams import Streams
 from .warnings import Warnings
 from .weather import Weather
 
@@ -41,11 +44,46 @@ class App:
         self.alerts.on_change = self.publish
         self.intercom = Intercom(cfg, self.alerts, self.publish)
         self.multicast = Multicast(cfg, self.alerts, self.publish)
+        self._subs = set()
+        self._lock = threading.Lock()
         self.lab = Lab(cfg, self.alerts, self.publish)
         self.hooks = Hooks(cfg, self.alerts)
         self.warnings = Warnings(cfg, state, self.alerts, self.publish)
-        self._subs = set()
-        self._lock = threading.Lock()
+        self.streams = Streams(cfg)
+        # What was changed on the screen itself (brightness, theme) outlives a restart.
+        self.device_file = state / "device.json"
+        try:
+            self.device = json.loads(self.device_file.read_text())
+        except (OSError, ValueError):
+            self.device = {}
+        if "brightness" in self.device:
+            self.screen.set(self.device["brightness"])
+        try:
+            self.version = subprocess.run(
+                ["git", "-C", str(WEB), "log", "-1", "--format=%h %cs"], capture_output=True,
+                text=True, timeout=5).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            self.version = ""
+
+    def device_info(self):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.connect(("10.255.255.255", 1))    # sends nothing; just picks the route
+                address = s.getsockname()[0]
+        except OSError:
+            address = ""
+        return {"hostname": socket.gethostname(), "address": address, "version": self.version,
+                "backlight": self.screen.dir is not None, "brightness": self.screen.percent,
+                "theme": self.device.get("theme", self.cfg["app"]["theme"])}
+
+    def set_device(self, body):
+        if "brightness" in body:
+            self.screen.set(body["brightness"])
+            self.device["brightness"] = self.screen.percent
+        if body.get("theme") in ("dark", "light", "auto"):
+            self.device["theme"] = body["theme"]
+        self.device_file.write_text(json.dumps(self.device))
+        return self.device_info()
 
     def snapshot(self):
         """Everything that changes by itself: the intercom, alerts and multicast groups."""
@@ -75,7 +113,8 @@ class App:
 
     def settings(self):
         app, weather = self.cfg["app"], self.cfg["weather"]
-        return {"theme": app["theme"], "clock": app["clock"],
+        return {"theme": self.device.get("theme", app["theme"]), "clock": app["clock"],
+                "streams": self.streams.enabled,
                 "idle_home_seconds": app["idle_home_seconds"],
                 "units": weather["units"], "intercom": self.intercom.enabled,
                 "alerts": True, "lab": self.lab.enabled,
@@ -179,7 +218,16 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/weather":
                 self._json(app.weather.get())
             elif path == "/api/calendar":
-                self._json(app.agenda.get())
+                month = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("month")
+                if month:
+                    year, _, mon = month[0].partition("-")
+                    self._json(app.agenda.month(int(year), int(mon)))
+                else:
+                    self._json(app.agenda.get())
+            elif path == "/api/streams":
+                self._json(app.streams.get())
+            elif path == "/api/device":
+                self._json(app.device_info())
             elif path == "/api/state":
                 self._json(app.snapshot())
             elif path == "/api/photos":
@@ -224,6 +272,12 @@ class Handler(BaseHTTPRequestHandler):
             elif path.startswith("/api/alerts/close/"):
                 app.alerts.close(int(path.rsplit("/", 1)[1]))
                 self._json({"ok": True})
+            elif path == "/api/device":
+                self._json(app.set_device(json.loads(raw or b"{}")))
+            elif path == "/api/alerts/test":
+                app.alerts.show(f"test:{time.time_ns()}", "this screen", "Test",
+                                ["This is a test alert."], until_ms=int(time.time() * 1000) + 8000)
+                self._json({"ok": True})
             elif path == "/api/alerts/seen":
                 app.alerts.seen_all()
                 self._json({"ok": True})
@@ -260,6 +314,7 @@ def main():
     app.multicast.start()
     app.lab.start()
     app.warnings.start()
+    app.streams.start()
 
     Handler.app = app
     server = ThreadingHTTPServer((host or "127.0.0.1", int(port)), Handler)

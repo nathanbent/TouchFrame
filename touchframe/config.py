@@ -45,6 +45,10 @@ DEFAULTS = {
         "name": "",                 # reported to senders over RTCP ("" = the host name)
         "interface": "",            # IPv4 address to join on ("" = any)
         "hold_seconds": 20,         # how long a page from a channel stays up
+        "monitor": True,            # the Streams tab: measure what arrives (with groups or watch set)
+        "watch": [],                # other groups to measure, e.g. audio zones
+        "monitor_port": 8659,       # loopback port for the monitor TouchFrame starts
+        "monitor_url": "",          # or an mcast server that's already running, e.g. "http://127.0.0.1:8650"
     },
     "alerts": {
         "emergency_stays": True,    # an emergency page stays up until it's tapped

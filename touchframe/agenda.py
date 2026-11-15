@@ -25,6 +25,7 @@ class Agenda:
         self.dir.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._cache = None
+        self._months = {}
 
     def _sources(self):
         out = []
@@ -53,15 +54,19 @@ class Agenda:
             texts.append((data, colour))
         return texts, stale
 
-    def _events(self):
+    def _events(self, month=None):
         import icalendar
         import recurring_ical_events
 
         texts, stale = self._download()
         today = datetime.now().date()
-        first = today.replace(day=1)
-        last = max(today + timedelta(days=self.cfg["days"]),
-                   (first + timedelta(days=32)).replace(day=1)) + timedelta(days=1)
+        if month:                       # (year, month): that month alone
+            first = today.replace(year=month[0], month=month[1], day=1)
+            last = (first + timedelta(days=32)).replace(day=1) + timedelta(days=1)
+        else:
+            first = today.replace(day=1)
+            last = max(today + timedelta(days=self.cfg["days"]),
+                       (first + timedelta(days=32)).replace(day=1)) + timedelta(days=1)
         events = []
         for data, colour in texts:
             cal = icalendar.Calendar.from_ical(data)
@@ -73,6 +78,19 @@ class Agenda:
                                "title": str(ev.get("SUMMARY", "")).strip() or "(no title)"})
         events.sort(key=lambda e: (e["start"].date(), not e["all_day"], e["start"], e["title"]))
         return events, stale
+
+    def month(self, year, month):
+        """Another month's events, for looking ahead or back on the Calendar tab."""
+        if not self.cfg["sources"]:
+            return {"events": []}
+        key = (year, month)
+        with self._lock:
+            hit = self._months.get(key)
+            if not hit or _time.monotonic() - hit[0] >= self.interval:
+                if len(self._months) > 24:
+                    self._months.clear()
+                hit = self._months[key] = (_time.monotonic(), self._events(key)[0])
+        return {"events": [_json(e) for e in hit[1]]}
 
     def get(self):
         """{"configured", "stale", "error", "week_start", "events": [...]}: this month's events
@@ -90,10 +108,13 @@ class Agenda:
                     # Show the error, and look again in a minute.
                     self._cache = (_time.monotonic() - self.interval + 60, [], False, _short(exc))
             _, events, out["stale"], out["error"] = self._cache
-        out["events"] = [{"title": e["title"], "colour": e["colour"], "all_day": e["all_day"],
-                          "start": e["start"].isoformat(), "stop": e["stop"].isoformat()}
-                         for e in events]
+        out["events"] = [_json(e) for e in events]
         return out
+
+
+def _json(e):
+    return {"title": e["title"], "colour": e["colour"], "all_day": e["all_day"],
+            "start": e["start"].isoformat(), "stop": e["stop"].isoformat()}
 
 
 def _is_ics(data):

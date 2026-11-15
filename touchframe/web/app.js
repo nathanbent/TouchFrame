@@ -216,20 +216,72 @@ function drawCalendar() {
     for (const e of events.slice(0, Math.floor(room))) { next.append(eventRow(e)); room -= 1; }
   }
 
-  // Calendar tab: the agenda...
+  drawMonth(problem, days);
+  drawStatus();
+}
+
+// The Calendar tab: a month you can page through, and beside it what's coming
+// up, or the day that was tapped.
+let calMonth = null;        // [year, month 0-11] when not this month
+let calDay = null;          // "2026-11-18" when a day was tapped
+const otherMonths = {};     // "2026-12" -> events, fetched as they're opened
+
+function monthEvents() {
+  if (!calMonth) return calendar ? calendar.events : [];
+  return otherMonths[`${calMonth[0]}-${calMonth[1] + 1}`] || [];
+}
+
+async function turnMonth(by) {
+  const now = new Date();
+  const d = calMonth ? new Date(calMonth[0], calMonth[1] + by, 1) : new Date(now.getFullYear(), now.getMonth() + by, 1);
+  calDay = null;
+  calMonth = by === 0 || (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) ? null : [d.getFullYear(), d.getMonth()];
+  drawCalendar();
+  if (!calMonth) return;
+  const key = `${calMonth[0]}-${calMonth[1] + 1}`;
+  try {
+    otherMonths[key] = (await get(`/api/calendar?month=${key}`)).events;
+    drawCalendar();
+  } catch (err) { toast(err.message); }
+}
+
+function drawMonth(problem, days) {
+  const now = new Date();
+  const [year, month] = calMonth || [now.getFullYear(), now.getMonth()];
+  const first = new Date(year, month, 1);
+  const events = monthEvents();
+
+  // Beside the month: the tapped day, another month's events, or what's coming up.
   const agenda = $("agenda");
   agenda.replaceChildren();
   if (problem !== null) agenda.append(h("div", { class: "empty" }, problem));
-  else if (!days.length) agenda.append(h("div", { class: "empty" }, `Nothing in the next ${calendar.days} days`));
-  for (const [d, events] of days) {
-    agenda.append(h("h2", { class: dayName(d) === "Today" ? "today" : "" }, dayName(d)), ...events.map(eventRow));
+  else if (calDay || calMonth) {
+    const byDay = new Map();
+    for (const e of events) {
+      const last = new Date(new Date(e.stop) - 1000);
+      for (let d = day(e.start); d <= last; d.setDate(d.getDate() + 1)) {
+        const key = ymd(d);
+        if (calDay ? key !== calDay : d.getMonth() !== month) continue;
+        if (!byDay.has(key)) byDay.set(key, []);
+        byDay.get(key).push({ ...e, start: new Date(e.start), all_day: e.all_day || ymd(new Date(e.start)) !== key, until: null });
+      }
+    }
+    if (calDay) agenda.append(h("h2", { class: "today" }, dayName(day(calDay))));
+    for (const [key, list] of [...byDay.entries()].sort()) {
+      if (!calDay) agenda.append(h("h2", {}, dayName(day(key))));
+      agenda.append(...list.sort((a, b) => (b.all_day - a.all_day) || (a.start - b.start)).map(eventRow));
+    }
+    if (!byDay.size) agenda.append(h("div", { class: "empty" }, calDay ? "Nothing that day" : "Nothing this month"));
+  } else {
+    if (!days.length) agenda.append(h("div", { class: "empty" }, `Nothing in the next ${calendar.days} days`));
+    for (const [d, list] of days) {
+      agenda.append(h("h2", { class: dayName(d) === "Today" ? "today" : "" }, dayName(d)), ...list.map(eventRow));
+    }
   }
 
-  // ...and the month.
-  const now = new Date(), first = new Date(now.getFullYear(), now.getMonth(), 1);
   const monday = calendar && calendar.week_start === "monday";
   const busy = new Set();
-  for (const e of (calendar ? calendar.events : [])) {
+  for (const e of events) {
     const last = new Date(new Date(e.stop) - 1000);
     for (let d = day(e.start); d <= last; d.setDate(d.getDate() + 1)) busy.add(ymd(d));
   }
@@ -240,18 +292,104 @@ function drawCalendar() {
   d.setDate(1 - ((first.getDay() - (monday ? 1 : 0) + 7) % 7));
   do {
     for (let i = 0; i < 7; i++, d.setDate(d.getDate() + 1)) {
-      const cls = ["d"];
-      if (d.getMonth() !== now.getMonth()) cls.push("out");
+      const cls = ["d"], key = ymd(d);
+      if (d.getMonth() !== month) cls.push("out");
       else {
-        if (ymd(d) === ymd(now)) cls.push("today");
-        if (busy.has(ymd(d))) cls.push("has");
+        if (key === ymd(now)) cls.push("today");
+        if (busy.has(key)) cls.push("has");
+        if (key === calDay) cls.push("picked");
       }
-      grid.append(h("div", { class: cls.join(" ") }, String(d.getDate())));
+      grid.append(h("button", {
+        class: cls.join(" "), disabled: d.getMonth() !== month,
+        onclick: () => { calDay = calDay === key ? null : key; drawCalendar(); },
+      }, String(d.getDate())));
     }
-  } while (d.getMonth() === now.getMonth());
-  $("month").replaceChildren(h("h1", {}, `${MONTHS[now.getMonth()]} ${now.getFullYear()}`), grid);
-  drawStatus();
+  } while (d.getMonth() === month);
+  put($("month"),
+    h("div", { class: "month-head" },
+      h("h1", {}, `${MONTHS[month]} ${year}`),
+      (calMonth || calDay) && h("button", { class: "pill", onclick: () => turnMonth(0) }, "Today"),
+      h("button", { class: "arrow", onclick: () => turnMonth(-1) }, "‹"),
+      h("button", { class: "arrow", onclick: () => turnMonth(1) }, "›")),
+    grid);
 }
+
+// ---------- streams ----------
+// What this Pi is receiving over multicast. Asked for only while the tab is open.
+let streamsTimer = null;
+
+const bits = k => k >= 1000 ? `${(k / 1000).toFixed(1)} Mbit/s` : `${k < 10 ? k.toFixed(1) : Math.round(k)} kbit/s`;
+const DSCP = { 0: "BE", 46: "EF", 34: "AF41", 26: "AF31", 48: "CS6", 40: "CS5", 32: "CS4", 24: "CS3" };
+
+function streamRow(s) {
+  if (s.silent) {
+    return h("div", { class: "strow silent" },
+      h("div", { class: "st-main" }, h("b", {}, s.name || s.group), h("div", { class: "lab-sub" }, s.name ? s.group : "")),
+      h("div", { class: "st-state" }, s.error ? `⚠ ${s.error}` : "Nothing heard yet"));
+  }
+  const idle = s.idle_ms > 3000;
+  const lossy = s.loss_percent >= 1;
+  // Level: -60 dBFS to 0 across the bar.
+  const level = s.peak_dbfs === null || s.peak_dbfs === undefined ? null : Math.max(0, Math.min(100, (s.peak_dbfs + 60) / 60 * 100));
+  const dscp = s.tos === null || s.tos === undefined ? "" : (DSCP[s.tos >> 2] || `DSCP ${s.tos >> 2}`);
+  return h("div", { class: `strow${idle ? " idle" : ""}` },
+    h("div", { class: "st-main" },
+      h("b", {}, s.name || s.group),
+      h("div", { class: "lab-sub" }, [s.name ? s.group : null, s.source, s.codec || (s.payload_type !== null ? `pt ${s.payload_type}` : null)].filter(Boolean).join(" · ")),
+      level !== null && !idle && h("div", { class: "meter-track" }, h("div", { class: "meter-fill", style: `width:${level}%` }))),
+    h("div", { class: "st-stats" },
+      stat(idle ? "idle" : bits(s.kbit_per_sec), idle ? `${Math.round(s.idle_ms / 1000)} s` : "rate"),
+      h("div", { class: `stat${lossy ? " bad" : ""}` }, h("b", {}, `${lossy ? "⚠ " : ""}${s.loss_percent.toFixed(s.loss_percent < 10 ? 1 : 0)}%`), h("span", {}, `${s.lost} lost`)),
+      stat(s.jitter_ms === null ? "–" : `${s.jitter_ms < 10 ? s.jitter_ms.toFixed(1) : Math.round(s.jitter_ms)} ms`, "jitter"),
+      stat(s.ttl === null ? "–" : String(s.ttl), `TTL${dscp ? ` · ${dscp}` : ""}`)));
+}
+
+async function loadStreams() {
+  clearTimeout(streamsTimer);
+  if (!document.querySelector("#streams.active")) return;
+  let data;
+  try { data = await get("/api/streams"); } catch (err) { data = { error: err.message, streams: [], listeners: [] }; }
+  const live = data.streams.filter(s => !s.silent), quiet = data.streams.filter(s => s.silent);
+  live.sort((a, b) => (a.idle_ms > 3000) - (b.idle_ms > 3000) || (a.name || a.group).localeCompare(b.name || b.group));
+  put($("streams-list"),
+    data.error && h("div", { class: "lab-error" }, `⚠ ${data.error}`),
+    live.map(streamRow), quiet.map(streamRow),
+    data.listeners.length && h("h2", {}, "Receivers reporting"),
+    data.listeners.filter(l => !l.left).map(l => h("div", { class: "strow" },
+      h("div", { class: "st-main" }, h("b", {}, l.name || l.from), h("div", { class: "lab-sub" }, `${l.group} · ${l.about === null ? "hearing nothing" : "listening"}`)),
+      h("div", { class: "st-stats" }, stat(l.loss_percent === null || l.loss_percent === undefined ? "–" : `${l.loss_percent.toFixed(1)}%`, "loss")))),
+    !data.error && !data.streams.length && h("div", { class: "empty" }, "No streams yet"));
+  streamsTimer = setTimeout(loadStreams, 2000);
+}
+
+// ---------- settings (the gear) ----------
+async function openSettings() {
+  let dev;
+  try { dev = await get("/api/device"); } catch (err) { return toast(err.message); }
+  const save = body => fetch("/api/device", { method: "POST", body: JSON.stringify(body) }).then(r => r.json());
+  const themes = h("div", { class: "seg" }, ["dark", "light", "auto"].map(t =>
+    h("button", { class: dev.theme === t ? "active" : "", onclick: async e => {
+      await save({ theme: t });
+      settings.theme = t;
+      for (const b of e.target.parentNode.children) b.classList.toggle("active", b === e.target);
+      document.documentElement.dataset.theme = t === "auto" ? (weather && weather.current && !weather.current.day ? "dark" : "light") : t;
+    } }, t[0].toUpperCase() + t.slice(1))));
+  const value = h("b", {}, `${dev.brightness}%`);
+  const slider = h("input", { type: "range", min: 5, max: 100, step: 5, value: dev.brightness,
+    oninput: e => { value.textContent = `${e.target.value}%`; },
+    onchange: e => save({ brightness: Number(e.target.value) }) });
+  put($("settings-body"),
+    dev.backlight && h("div", { class: "set-row" }, h("span", {}, "Brightness"), slider, value),
+    h("div", { class: "set-row" }, h("span", {}, "Theme"), themes),
+    h("div", { class: "set-row" },
+      h("button", { class: "pill", onclick: () => { $("settings").hidden = true; startSaver(true); } }, "Show photos now"),
+      settings.alerts && h("button", { class: "pill", onclick: () => { $("settings").hidden = true; post("/api/alerts/test").catch(e => toast(e.message)); } }, "Send a test alert"),
+      h("button", { class: "pill", onclick: () => location.reload() }, "Reload")),
+    h("div", { class: "set-info" }, [dev.hostname, dev.address, dev.version && `version ${dev.version}`].filter(Boolean).join("  ·  ")));
+  $("settings").hidden = false;
+}
+$("gear").addEventListener("click", openSettings);
+$("settings-close").addEventListener("click", () => { $("settings").hidden = true; });
 
 // ---------- intercom ----------
 async function post(path) {
@@ -568,9 +706,10 @@ function nextPhoto() {
   saverTimer = setTimeout(nextPhoto, Math.max(5, saver.seconds) * 1000);
 }
 
-async function startSaver() {
+async function startSaver(asked) {
   await loadPhotos();
-  if (!saver || !saver.enabled || !saver.photos.length || !$("page").hidden) return armSaver();
+  if (asked === true && saver && !saver.photos.length) return toast("No photos yet: copy some into the photo folder");
+  if (!saver || (!saver.enabled && asked !== true) || !saver.photos.length || !$("page").hidden) return armSaver();
   $("saver").hidden = false;
   $("saver-clock").hidden = !saver.clock;
   nextPhoto();
@@ -613,6 +752,8 @@ function show(view) {
   for (const el of document.querySelectorAll(".view")) el.classList.toggle("active", el.id === view);
   for (const el of document.querySelectorAll("nav > button")) el.classList.toggle("active", el.dataset.view === view);
   if (view === "alerts" && state && state.alerts.unseen) markSeen();
+  if (view === "streams") loadStreams();
+  if (view !== "calendar" && (calMonth || calDay)) { calMonth = calDay = null; drawCalendar(); }
 }
 for (const el of document.querySelectorAll("nav > button")) el.addEventListener("click", () => show(el.dataset.view));
 $("stop-all").addEventListener("click", () => post("/api/intercom/stop").catch(e => toast(e.message)));
@@ -624,7 +765,7 @@ function touched() {
   clearTimeout(idleTimer);
   if ($("saver").hidden) armSaver();
   if (settings.idle_home_seconds > 0) {
-    idleTimer = setTimeout(() => { $("confirm").hidden = true; $("detail").hidden = true; show("home"); }, settings.idle_home_seconds * 1000);
+    idleTimer = setTimeout(() => { $("confirm").hidden = true; $("detail").hidden = true; $("settings").hidden = true; show("home"); }, settings.idle_home_seconds * 1000);
   }
   if (Date.now() - lastWake > 20000) {
     lastWake = Date.now();
@@ -666,6 +807,7 @@ async function start() {
   drawClock();
   try { settings = await get("/api/settings"); } catch { /* the defaults do */ }
   if (settings.theme !== "auto") document.documentElement.dataset.theme = settings.theme;
+  $("tab-streams").hidden = !settings.streams;
   drawClock();
   setInterval(drawClock, 1000);
   loadWeather(); loadCalendar();

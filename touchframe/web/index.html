@@ -35,6 +35,10 @@
     <div class="al-list" id="al-list"></div>
   </section>
 
+  <section id="streams" class="view">
+    <div class="lab-list" id="streams-list"></div>
+  </section>
+
   <section id="lab" class="view">
     <div class="lab-switch" id="lab-switch" hidden>
       <button data-lab="tiles" class="active">Overview</button>
@@ -66,10 +70,12 @@
   <button data-view="home" class="active">Home</button>
   <button data-view="calendar">Calendar</button>
   <button data-view="alerts" id="tab-alerts" hidden>Alerts<span class="badge" id="badge" hidden></span></button>
+  <button data-view="streams" id="tab-streams" hidden>Streams</button>
   <button data-view="lab" id="tab-lab" hidden>Lab<span class="badge" id="lab-badge" hidden></span></button>
   <button data-view="intercom" id="tab-intercom" hidden>Intercom</button>
   <div class="playing" id="playing" hidden></div>
   <div class="status" id="status"></div>
+  <div class="gear" id="gear" role="button" aria-label="Settings">⚙</div>
 </nav>
 
 <div class="saver" id="saver" hidden>
@@ -91,6 +97,13 @@
   <div class="detail-box">
     <div class="detail-text" id="detail-text"></div>
     <button id="detail-close">Close</button>
+  </div>
+</div>
+
+<div class="confirm" id="settings" hidden>
+  <div class="detail-box">
+    <div class="settings-body" id="settings-body"></div>
+    <button id="settings-close">Close</button>
   </div>
 </div>
 
