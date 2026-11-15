@@ -1238,6 +1238,7 @@ function drawSettings() {
       s.saver.enabled && row("Start after", "", stepper([1, 2, 5, 10, 15, 30, 60], s.saver.idle_minutes, v => span(v * 60), v => save({ "screensaver.idle_minutes": v }))),
       s.saver.enabled && row("Each photo stays", "", stepper([10, 15, 30, 60, 120, 300], s.saver.seconds, span, v => save({ "screensaver.seconds": v }))),
       s.saver.enabled && row("Picture of the day", "From Wikimedia Commons", toggle("Picture of the day", s.saver.picture_of_the_day, v => save({ "screensaver.picture_of_the_day": v }))),
+      s.saver.enabled && row("Space photos", "From NASA's image library", toggle("Space photos", s.saver.nasa, v => save({ "screensaver.nasa": v }))),
       s.saver.enabled && row("Show the time", "", toggle("Show the time", s.saver.clock, v => save({ "screensaver.clock": v }))))],
     ["Alerts", group(
       row("Emergencies stay up", "Until someone taps them", toggle("Emergencies stay up", s.emergency_stays, v => save({ "alerts.emergency_stays": v }))))],

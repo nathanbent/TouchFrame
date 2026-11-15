@@ -164,7 +164,7 @@ class App:
                 "brightness": screen["brightness"], "dim_hours": screen["dim_hours"],
                 "dim_brightness": screen["dim_brightness"],
                 "saver": {k: saver[k] for k in ("enabled", "idle_minutes", "seconds",
-                                                "picture_of_the_day", "clock")},
+                                                "picture_of_the_day", "nasa", "clock")},
                 "emergency_stays": self.cfg["alerts"]["emergency_stays"],
                 "week_start": self.cfg["calendar"]["week_start"],
                 "paired": self.admin.count()}
@@ -350,6 +350,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(app.photos.file(urllib.parse.unquote(path[7:])), "max-age=3600")
             elif path.startswith("/received/"):
                 self._send(app.multicast.file(urllib.parse.unquote(path[10:])), "max-age=3600")
+            elif path.startswith("/photo-nasa/"):
+                self._send(app.photos.nasa_file(path[12:]), "max-age=86400")
             elif path == "/photo-of-the-day":
                 self._send(app.photos.potd_image, "max-age=86400")
             elif path == "/api/events":
