@@ -150,6 +150,8 @@ picture_of_the_day = true       # add Wikimedia Commons' picture of the day
 nasa = true                     # add space photos from NASA's image library
 nasa_topics = ["nebula", "galaxy", "star cluster", "supernova remnant", "Earth observation", "Saturn", "Jupiter", "aurora"]
 nasa_count = 30                 # how many are kept; a new set each day
+icloud_album = ""               # an iCloud shared album's public link: https://www.icloud.com/sharedalbum/#B0...
+icloud_count = 200              # at most this many of its photos are kept
 clock = true
 
 [screen]

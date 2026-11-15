@@ -128,7 +128,8 @@ SECTIONS = [
         "help": {
             "use": "turning the photos on or off and setting their timing.",
             "give": "the photos themselves go in ~/Pictures/touchframe on the Pi (subfolders too), "
-                    "for example with scp. JPEG, PNG, WebP and GIF work.",
+                    "for example with scp. JPEG, PNG, WebP and GIF work. For an iCloud shared "
+                    "album, turn on its Public Website in Photos and paste the link here.",
             "get": "photos in a random order, with the time in the corner. A tap brings the "
                    "dashboard back, a swipe changes the photo, and an alert shows over them.",
             "limits": "The folder is set in config.toml, not here. With no photos, and the "
@@ -148,6 +149,11 @@ SECTIONS = [
               "Each is a search of images.nasa.gov. A day's set is drawn from four of them.",
               placeholder="nebula, Saturn"),
             F("screensaver.nasa_count", "Space photos to keep", "int", min=1, max=100, unit="photos"),
+            F("screensaver.icloud_album", "iCloud shared album", "secret",
+              "The album's public link. New photos show up within the hour.",
+              placeholder="https://www.icloud.com/sharedalbum/#B0...", heading="iCloud"),
+            F("screensaver.icloud_count", "Album photos to keep", "int",
+              "A bigger album is drawn from at random.", min=1, max=1000, unit="photos"),
             F("screensaver.clock", "Show the time", "bool"),
         ],
     },

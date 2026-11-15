@@ -352,6 +352,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(app.multicast.file(urllib.parse.unquote(path[10:])), "max-age=3600")
             elif path.startswith("/photo-nasa/"):
                 self._send(app.photos.nasa_file(path[12:]), "max-age=86400")
+            elif path.startswith("/photo-icloud/"):
+                self._send(app.photos.icloud_file(path[14:]), "max-age=86400")
             elif path == "/photo-of-the-day":
                 self._send(app.photos.potd_image, "max-age=86400")
             elif path == "/api/events":
