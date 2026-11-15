@@ -147,6 +147,9 @@ idle_minutes = 5                # photos start after this long untouched (0 = ne
 folder = "~/Pictures/touchframe"   # subfolders are included
 seconds = 30                    # per photo
 picture_of_the_day = true       # add Wikimedia Commons' picture of the day
+nasa = true                     # add space photos from NASA's image library
+nasa_topics = ["nebula", "galaxy", "star cluster", "supernova remnant", "Earth observation", "Saturn", "Jupiter", "aurora"]
+nasa_count = 30                 # how many are kept; a new set each day
 clock = true
 
 [screen]

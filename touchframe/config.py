@@ -97,6 +97,10 @@ DEFAULTS = {
         "folder": "~/Pictures/touchframe",
         "seconds": 30,              # per photo
         "picture_of_the_day": True, # add Wikimedia Commons' picture of the day
+        "nasa": True,               # add space photos from NASA's image library
+        "nasa_topics": ["nebula", "galaxy", "star cluster", "supernova remnant",
+                        "Earth observation", "Saturn", "Jupiter", "aurora"],
+        "nasa_count": 30,           # how many are kept; a new set each day
         "clock": True,
     },
     "screen": {

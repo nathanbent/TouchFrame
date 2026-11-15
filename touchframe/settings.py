@@ -131,8 +131,10 @@ SECTIONS = [
                     "for example with scp. JPEG, PNG, WebP and GIF work.",
             "get": "photos in a random order, with the time in the corner. A tap brings the "
                    "dashboard back, a swipe changes the photo, and an alert shows over them.",
-            "limits": "The folder is set in config.toml, not here. With no photos and the "
-                      "picture of the day off, the dashboard just stays up.",
+            "limits": "The folder is set in config.toml, not here. With no photos, and the "
+                      "picture of the day and NASA's photos off, the dashboard just stays up. "
+                      "Only wide photos are taken from NASA, from JPL, Goddard and Johnson; "
+                      "a search can still turn up a diagram or a drawing.",
         },
         "fields": [
             F("screensaver.enabled", "Show photos", "bool"),
@@ -140,6 +142,12 @@ SECTIONS = [
             F("screensaver.seconds", "Each photo stays for", "int", min=5, max=3600, unit="seconds"),
             F("screensaver.picture_of_the_day", "Wikimedia Commons' picture of the day", "bool",
               "Adds one new photo a day, with its caption."),
+            F("screensaver.nasa", "Space photos from NASA", "bool",
+              "Adds photos from NASA's image library, with their titles. A new set each day."),
+            F("screensaver.nasa_topics", "What to look for", "list",
+              "Each is a search of images.nasa.gov. A day's set is drawn from four of them.",
+              placeholder="nebula, Saturn"),
+            F("screensaver.nasa_count", "Space photos to keep", "int", min=1, max=100, unit="photos"),
             F("screensaver.clock", "Show the time", "bool"),
         ],
     },

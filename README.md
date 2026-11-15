@@ -287,13 +287,26 @@ Prometheus and Zabbix are checked once a minute, the tiles every 30 seconds (Ple
 
 ## Screensaver
 
-After 5 minutes untouched, photos from `~/Pictures/touchframe` (subfolders too) fill the screen, a new one every 30 seconds in a random order, with the time in the corner. Wikimedia Commons' Picture of the Day is added to them, with its caption. A tap brings the dashboard back, and an alert shows over the photos.
+After 5 minutes untouched, photos from `~/Pictures/touchframe` (subfolders too) fill the screen, a new one every 30 seconds in a random order, with the time in the corner. Wikimedia Commons' Picture of the Day is added to them, with its caption, and so are [space photos from NASA](#space-photos). A tap brings the dashboard back, and an alert shows over the photos.
 
 ```bash
 scp *.jpg pi@<pi-address>:~/Pictures/touchframe/
 ```
 
-JPEG, PNG, WebP and GIF work. Photos are scaled down the first time they're shown, so big ones from a phone are fine. With no photos and `picture_of_the_day = false`, the dashboard just stays up. Settings are under `[screensaver]`.
+JPEG, PNG, WebP and GIF work. Photos are scaled down the first time they're shown, so big ones from a phone are fine. With no photos, and `picture_of_the_day` and `nasa` both `false`, the dashboard just stays up. Settings are under `[screensaver]`.
+
+### Space photos
+
+With `nasa = true` (the default), 30 photos from [NASA's image library](https://images.nasa.gov) are mixed in, each with its title and credit: nebulae, galaxies, the planets, and the Earth and its auroras from orbit. A new set is fetched each day, in the background, and the last set stays up until it is ready or if NASA can't be reached. No API key is needed.
+
+```toml
+[screensaver]
+nasa = true
+nasa_topics = ["nebula", "galaxy", "Saturn", "aurora"]   # searches of images.nasa.gov
+nasa_count = 30
+```
+
+A day's set is drawn from four of the topics, picked at random. Only wide photos are taken, and only from JPL, Goddard and Johnson, which keeps out most of the library's press events and hangars; an annotated figure still turns up now and then. The topics, the count and the switch are also on the settings page, and the switch is on the Settings tab.
 
 ## Updating
 
