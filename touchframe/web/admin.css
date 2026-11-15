@@ -1,0 +1,101 @@
+/* The settings page, for a phone or a computer. Colours and fonts come from
+   tokens.css; light or dark follows the device. */
+@font-face {
+  font-family: "Rubik"; font-weight: 300 900; font-style: normal; font-display: swap;
+  src: url("fonts/Rubik-Variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Karla"; font-weight: 200 800; font-style: normal; font-display: swap;
+  src: url("fonts/Karla-Variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono"; font-weight: 100 800; font-style: normal; font-display: swap;
+  src: url("fonts/JetBrainsMono-Variable.woff2") format("woff2");
+}
+
+* { box-sizing: border-box; }
+html { color-scheme: light dark; }
+body { margin: 0; background: var(--theme); color: var(--content); font: 400 1rem/1.5 var(--font-body); }
+[hidden] { display: none !important; }
+h1, h2, .brand { font-family: var(--font-heading); font-weight: 500; color: var(--accent); margin: 0; text-wrap: balance; }
+h1 { font-size: 1.5rem; }
+h2 { font-size: 1.05rem; margin-top: 1.75rem; }
+p { margin: .5rem 0; max-width: var(--measure); text-wrap: pretty; }
+b { font-weight: 600; color: var(--primary); }
+code { font-family: var(--font-mono); font-size: .9em; background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 4px; padding: 0 .25em; }
+.card { background: var(--entry); border: 1px solid var(--border); border-radius: var(--radius); }
+.hint { color: var(--secondary); font-size: .875rem; margin: .25rem 0 0; }
+.error { color: var(--status-error); font-weight: 600; margin: .5rem 0 0; }
+.error:empty { display: none; }
+
+header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem 1rem; max-width: var(--main-width); margin: 0 auto; }
+.brand { font-size: 1.15rem; }
+
+button { font: inherit; font-weight: 600; min-height: 2.75rem; padding: 0 1rem; border-radius: var(--radius); border: 1px solid var(--border); background: var(--code-bg); color: var(--primary); cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+button.warn { color: var(--status-error); }
+button.link { border: 0; background: none; color: var(--accent); padding: 0 .25rem; }
+button.small { min-height: 2.25rem; padding: 0 .7rem; font-size: .875rem; }
+button:disabled { opacity: .45; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+input, select { font: inherit; color: var(--primary); background: var(--theme); border: 1px solid var(--tertiary); border-radius: var(--radius); min-height: 2.75rem; padding: 0 .7rem; width: 100%; }
+input::placeholder { color: var(--secondary); opacity: 1; }
+input.mono { font-family: var(--font-mono); font-size: .9rem; }
+input[type="number"] { width: 7.5rem; font-variant-numeric: tabular-nums; }
+input[type="checkbox"] { width: 1.4rem; height: 1.4rem; min-height: 0; padding: 0; accent-color: var(--accent); flex: none; }
+label { font-weight: 600; color: var(--primary); }
+
+.gate { max-width: 26rem; margin: 2rem auto; padding: 1.5rem; }
+.gate h1 { margin-bottom: .5rem; }
+.gate label { display: block; margin-top: 1rem; }
+.gate input { font-family: var(--font-heading); font-size: 1.75rem; letter-spacing: .15em; text-align: center; min-height: 3.5rem; margin-top: .25rem; font-variant-numeric: tabular-nums; }
+.gate button { width: 100%; margin-top: 1rem; }
+
+.app { display: grid; grid-template-columns: 12rem minmax(0, 1fr); gap: 1.5rem; max-width: var(--main-width); margin: 0 auto; padding: .5rem 1rem 4rem; align-items: start; }
+#sections { display: flex; flex-direction: column; gap: .15rem; position: sticky; top: 1rem; }
+#sections button { text-align: left; border: 0; background: none; color: var(--secondary); }
+#sections button[aria-current="page"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+#sections button:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+/* Page help: the same panel, in the same place, on every section. */
+details.help { margin: .75rem 0 1.25rem; }
+details.help summary, details.danger summary { cursor: pointer; color: var(--secondary); padding: .6rem .9rem; font-weight: 600; }
+details.help > div { padding: 0 .9rem .6rem; border-top: 1px solid var(--border); }
+details.help p { margin: .6rem 0; }
+
+.field { padding: .8rem 0; border-top: 1px solid var(--border); display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); gap: .25rem 1.25rem; align-items: start; }
+.field > label, .field > .label { padding-top: .55rem; font-weight: 600; color: var(--primary); }
+.field.first { border-top: 0; }
+.control { min-width: 0; }
+.inline { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.inline .unit { color: var(--secondary); }
+.check { display: flex; align-items: center; gap: .6rem; min-height: 2.75rem; }
+.secret { display: flex; gap: .5rem; }
+.secret button { flex: none; }
+
+.rows { display: flex; flex-direction: column; gap: .75rem; }
+.rowcard { padding: .25rem .9rem .5rem; }
+.rowcard .field { grid-template-columns: minmax(0, 11rem) minmax(0, 1fr); }
+.rowcard .field:first-of-type { border-top: 0; }
+.rowhead { display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding-top: .4rem; color: var(--secondary); font-size: .875rem; }
+.tabrow { display: flex; align-items: center; gap: .5rem; min-height: 2.75rem; }
+.tabrow span { flex: 1; }
+
+.savebar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 1rem; padding: .75rem 0; margin-top: 1rem; background: var(--theme); border-top: 1px solid var(--border); }
+.savebar .primary { min-width: 7rem; }
+#saved { color: var(--secondary); }
+#saved.error { color: var(--status-error); font-weight: 600; margin: 0; }
+.restarts { border-left: 4px solid var(--status-warn-border); background: color-mix(in srgb, var(--status-warn-border) 12%, transparent); border-radius: var(--radius); padding: .6rem .9rem; margin: 1rem 0 0; color: var(--content); }
+details.danger { margin-top: 2rem; border-top: 1px solid var(--border); }
+details.danger summary { padding-left: 0; }
+details.danger button { margin: .25rem .5rem .25rem 0; }
+
+@media (max-width: 700px) {
+  .app { grid-template-columns: minmax(0, 1fr); gap: .75rem; }
+  #sections { position: static; flex-direction: row; overflow-x: auto; padding-bottom: .25rem; }
+  #sections button { flex: none; }
+  .field, .rowcard .field { grid-template-columns: minmax(0, 1fr); }
+  .field > label, .field > .label { padding-top: 0; }
+}

@@ -1,12 +1,17 @@
 # TouchFrame settings. install.sh copies this to config.toml, which git ignores.
 # Restart after editing:  sudo systemctl restart touchframe
+#
+# Most of this can also be changed from the screen's Settings tab, or from a
+# phone (Settings > Show code). Those changes are kept in settings.json in the
+# state directory and win over this file; this file is never rewritten.
 
 [app]
 theme = "dark"                  # "dark", "light" or "auto" (light by day, dark at night)
 clock = "12h"                   # or "24h"
 listen = "127.0.0.1:8660"       # "0.0.0.0:8660" to take webhooks from other machines
 remote_view = false             # true also lets other machines open the dashboard (it has no sign-in)
-idle_home_seconds = 120         # back to Home after this long untouched (0 = never)
+idle_home_seconds = 120         # back to the first tab after this long untouched (0 = never)
+tabs = []                       # the tabs to show, in order, e.g. ["home", "lab", "calendar"] ([] = all)
 
 # [weather] and [calendar] take the same settings as InkFrame's config.toml,
 # so those two sections can be copied across as they are.
@@ -62,13 +67,13 @@ emergency_stays = true          # an emergency page stays up, flashing, until it
 emergency_words = []            # e.g. ["fire", "lockdown"]: pages with these words are emergencies
 
 [prometheus]
-url = ""                        # e.g. "http://10.0.30.10:9090"; "" = off
+url = ""                        # e.g. "http://192.0.2.20:9090"; "" = off
 token = ""                      # only if yours needs one
 ignore_jobs = []                # jobs to leave out of the counts
 interval_seconds = 60
 
 [zabbix]
-url = ""                        # e.g. "http://10.0.30.20:180"; "" = off
+url = ""                        # e.g. "http://192.0.2.30"; "" = off
 token = ""                      # an API token: Users > API tokens in Zabbix (a read-only user is enough)
 min_severity = 2                # list problems from this up: 2 Warning, 3 Average, 4 High, 5 Disaster
 alert_severity = 0              # new problems this severe also go up as alerts (0 = never; 4 = High and Disaster)
@@ -80,19 +85,19 @@ interval_seconds = 60
 
 # [[proxmox]]
 # name = "Cluster"
-# url = "https://10.0.30.5:8006"
+# url = "https://192.0.2.10:8006"
 # token = "touchframe@pve!panel=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"   # USER@REALM!TOKENID=SECRET, with the PVEAuditor role
 # verify_tls = false
 # nodes = []                    # only these nodes ([] = all)
 
 # [[adguard]]
 # name = "AdGuard 1"
-# url = "http://10.0.30.2"
+# url = "http://192.0.2.53"
 # username = "admin"
 # password = "..."
 
 # [[unifi]]
-# url = "https://10.0.30.1"
+# url = "https://192.0.2.1"
 # key = "..."                   # an API key (UniFi OS: Settings > Control Plane > Integrations), or:
 # username = "touchframe"       # a local, view-only user
 # password = "..."
@@ -100,30 +105,30 @@ interval_seconds = 60
 # verify_tls = false
 
 # [[plex]]
-# url = "http://10.0.30.40:32400"
+# url = "http://192.0.2.40:32400"
 # token = "..."                 # your X-Plex-Token
 
 # [[sonarr]]                    # and [[radarr]]: the same settings
-# url = "http://10.0.30.40:8989"
+# url = "http://192.0.2.40:8989"
 # key = "..."                   # Settings > General > API Key
 
 # [[overseerr]]                 # or Jellyseerr
-# url = "http://10.0.30.40:5055"
+# url = "http://192.0.2.40:5055"
 # key = "..."                   # Settings > General > API Key
 
 # [[sabnzbd]]
-# url = "http://10.0.30.40:8080"
+# url = "http://192.0.2.40:8080"
 # key = "..."                   # Config > General > API Key
 
 # [[qbittorrent]]
 # name = "qBittorrent"
-# url = "http://10.0.30.40:8081"
+# url = "http://192.0.2.40:8081"
 # username = "admin"            # leave both out if it trusts this Pi's address
 # password = "..."
 
 # [[portainer]]
 # name = "Docker 1"
-# url = "https://10.0.30.50:9443"
+# url = "https://192.0.2.50:9443"
 # key = "..."                   # My account > Access tokens
 # environment = 1               # the number in the environment's URL in Portainer
 # verify_tls = false

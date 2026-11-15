@@ -32,6 +32,14 @@ class Group:
         self._sender = None
         self._timer = None
         self._lock = threading.Lock()
+        self._proc = None
+        self._stopping = False
+
+    def stop(self):
+        """Leave the group: before the server restarts itself, so no receiver is left behind."""
+        self._stopping = True
+        if self._proc and self._proc.poll() is None:
+            self._proc.terminate()
 
     def _set(self, **changes):
         self.status.update(changes)
@@ -81,9 +89,9 @@ class Group:
                "-n", self.cfg["name"] or socket.gethostname()]
         if self.cfg["interface"]:
             cmd += ["-i", str(self.cfg["interface"])]
-        while True:
+        while not self._stopping:
             try:
-                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                proc = self._proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                         text=True, errors="replace", bufsize=1)
             except OSError as exc:
                 self._set(listening=False, error=str(exc))
@@ -137,10 +145,10 @@ class PictureGroup(Group):
                "-n", self.cfg["name"] or socket.gethostname(), "--max-size", "50"]
         if self.cfg["interface"]:
             cmd += ["-i", str(self.cfg["interface"])]
-        while True:
+        while not self._stopping:
             error = None
             try:
-                proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                proc = self._proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                                         text=True, errors="replace", bufsize=1)
                 log.info("multicast: listening for pictures on %s", self.group)
                 self._set(listening=True, error=None)
@@ -177,6 +185,10 @@ class Multicast:
     def start(self):
         for g in self.groups:
             threading.Thread(target=g.run, name=f"multicast-{g.group}", daemon=True).start()
+
+    def stop(self):
+        for g in self.groups:
+            g.stop()
 
     def snapshot(self):
         return [dict(g.status) for g in self.groups]

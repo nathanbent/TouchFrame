@@ -59,7 +59,7 @@ class Hooks:
                         else "high" if severity in self.cfg["high_severities"] else "normal")
             name = labels.get("alertname") or body.get("title") or "Grafana alert"
             text = notes.get("summary") or notes.get("description") or name
-            self.alerts.show(key, "Grafana", f"Grafana · {name}", str(text).splitlines(),
+            self.alerts.show(key, "Grafana", f"Grafana \u00b7 {name}", str(text).splitlines(),
                              priority=priority, until_ms=self._until())
             shown += 1
         return {"ok": True, "shown": shown}
