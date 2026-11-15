@@ -7,6 +7,7 @@ a page. Nothing here goes through the panel's API.
 """
 import json
 import logging
+import re
 import shutil
 import socket
 import subprocess
@@ -18,6 +19,8 @@ from .alerts import now_ms
 log = logging.getLogger(__name__)
 
 GATHER = 0.6        # lines this close together are one page
+NO_END = 600        # a page whose end never comes is taken down after this many seconds
+PANEL_ID = re.compile(r"^(\d+)\.(\d+)$")     # the intercom panel's page ids: RUN.AT_MS
 
 
 class Group:
@@ -27,6 +30,7 @@ class Group:
         self.alerts = alerts
         self.on_change = on_change
         self.status = {"group": group, "listening": False, "error": None, "last_ms": None, "pages": 0}
+        self._holds = {}            # page id -> seconds it stays up once cleared
         self._lines = []
         self._sender = None
         self._timer = None
@@ -54,6 +58,10 @@ class Group:
                 entry = json.loads(line)
             except ValueError:
                 return
+            if entry.get("type") == "page":
+                return self._page(entry)
+            if entry.get("type") == "clear":
+                return self._clear(entry)
             if entry.get("type") != "line":
                 return
             sender, text = entry.get("from"), str(entry.get("text", ""))
@@ -75,6 +83,38 @@ class Group:
             self._timer = threading.Timer(GATHER, self._flush)
             self._timer.daemon = True
             self._timer.start()
+
+    def _key(self, page_id):
+        return f"multicast:{self.group}:{page_id}"
+
+    def _page(self, entry):
+        """A whole page, with what its sender says it is: its name, its priority,
+        and (later) its end. Nothing is guessed from timing or from its words."""
+        page_id, at = str(entry.get("id", "")), now_ms()
+        lines = [str(line) for line in entry.get("text", [])]
+        if not page_id or not lines:
+            return
+        if len(self._holds) > 200:
+            self._holds.clear()
+        self._holds[page_id] = max(0, int(entry.get("hold_s") or 0))
+        self.status.update(last_ms=at, pages=self.status["pages"] + 1)
+        # The panel's own pages have the same id by its API: one alert, heard twice.
+        panel = PANEL_ID.match(page_id)
+        priority = entry.get("priority")
+        self.alerts.show(self._key(page_id), f"multicast {self.group}",
+                         entry.get("name") or entry.get("from") or "Text page", lines,
+                         priority=priority if priority in ("high", "emergency") else "normal",
+                         until_ms=at + NO_END * 1000,
+                         same_as=f"panel:{panel[1]}:{panel[2]}" if panel else None)
+
+    def _clear(self, entry):
+        """A page's end: after its hold, or at once when it was stopped by hand."""
+        page_id, at = str(entry.get("id", "")), now_ms()
+        hold = self._holds.pop(page_id, None)
+        if hold is None:
+            return
+        stopped = bool(entry.get("now"))
+        self.alerts.end(self._key(page_id), at if stopped else at + hold * 1000, stopped=stopped)
 
     def _other(self, lines, sender):
         at = now_ms()

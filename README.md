@@ -117,8 +117,10 @@ On the panel, add the same group to a zone's **Text displays**. Anything else th
 
 - Text pages can carry emoji; `install.sh` installs the font Chromium needs to draw them (`fonts-noto-color-emoji`).
 - The Pi joins the group and reports to the sender over RTCP as `name` (its host name unless set), so it shows up as a receiver on the mcast monitor.
-- A channel carries only the words, so a page from one is headed with the sender's name, stays up for `hold_seconds`, and is an emergency only if it has one of `emergency_words`.
-- With both routes set, the same page arriving both ways is shown once, and the Alerts tab says it came "via panel · via multicast 239.192.3.1:11000". A page that lists only one of them didn't arrive by the other, which is the thing to look for when testing the network.
+- The intercom panel (with mcast-tools after 0.5.12 on both ends) sends each page with what it is: the announcement's name, its priority, and its end. Such a page is shown exactly as one from the panel's API is: headed with the name, an emergency when the announcement is, up until the announcement ends, and down at once when it's stopped. So a screen with only `[multicast]` set, and no link to the panel, loses nothing. If its end never arrives, a page comes down after ten minutes.
+- `mcast text send --page "Lunch" --priority high --hold 30 "Pizza in the hall"` sends such a page from anywhere.
+- Plain text on a channel carries only the words, so it is headed with the sender's name, stays up for `hold_seconds`, and is an emergency only if it has one of `emergency_words`.
+- With both routes set, the same page arriving both ways is shown once (matched by the page's id when it has one, else by its words), and the Alerts tab says it came "via panel · via multicast 239.192.3.1:11000". A page that lists only one of them didn't arrive by the other, which is the thing to look for when testing the network.
 - The Alerts tab shows each group, whether it's being listened to, and how many pages it has heard.
 
 ### Streams
