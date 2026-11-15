@@ -215,7 +215,7 @@ class Group:
         while not self._stopping:
             try:
                 proc = self._proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                        text=True, errors="replace", bufsize=1)
+                                        text=True, encoding="utf-8", errors="replace", bufsize=1)
             except OSError as exc:
                 self._set(listening=False, error=str(exc))
                 time.sleep(10)
@@ -237,7 +237,7 @@ class Group:
 def _has_json(binary):
     """Whether this `mcast text recv` can print JSON (mcast-tools after 0.5.12)."""
     try:
-        out = subprocess.run([binary, "text", "recv", "--help"], capture_output=True, text=True,
+        out = subprocess.run([binary, "text", "recv", "--help"], capture_output=True, text=True, encoding="utf-8", errors="replace",
                              timeout=10).stdout
     except (OSError, subprocess.SubprocessError):
         return False
@@ -282,7 +282,7 @@ class PictureGroup(Group):
             error = None
             try:
                 proc = self._proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                                        text=True, errors="replace", bufsize=1)
+                                        text=True, encoding="utf-8", errors="replace", bufsize=1)
                 log.info("multicast: listening for pictures on %s", self.group)
                 self._set(listening=True, error=None)
                 for line in proc.stderr:

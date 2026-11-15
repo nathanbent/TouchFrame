@@ -68,6 +68,10 @@ class App:
         self.hooks = Hooks(cfg, self.alerts)
         self.warnings = Warnings(cfg, state, self.alerts, self.publish)
         self.streams = Streams(cfg)
+        self.emoji_font = self._emoji_font()
+        if self.emoji_font is False:
+            log.warning("no emoji font: emoji in text pages will be empty boxes. Install one "
+                        "(sudo apt-get install fonts-noto-color-emoji), then restart the browser")
         # Changes each time the server starts. A page that sees a new one reloads
         # itself, so an update or a config change shows without touching the screen.
         self.started = str(time.time_ns())
@@ -130,13 +134,25 @@ class App:
         """Whether other devices can connect at all."""
         return self.listen[0] not in ("127.0.0.1", "localhost", "::1")
 
+    def _emoji_font(self):
+        """Whether this machine has a font with emoji in it (None if that can't be
+        told). Without one, Chromium draws the emoji in text pages as empty boxes."""
+        try:
+            out = subprocess.run(["fc-list", ":lang=und-zsye", "family"], capture_output=True,
+                                 text=True, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if out.returncode != 0:
+            return None
+        return bool(out.stdout.strip())
+
     def settings(self, can_edit=True):
         app, weather, screen, saver = (self.cfg[k] for k in ("app", "weather", "screen", "screensaver"))
         return {"theme": app["theme"], "clock": app["clock"],
                 "idle_home_seconds": app["idle_home_seconds"], "tabs": app["tabs"],
                 "streams": self.streams.enabled,
                 "units": weather["units"], "intercom": self.intercom.enabled,
-                "alerts": True, "lab": self.lab.enabled,
+                "alerts": True, "lab": self.lab.enabled, "emoji_font": self.emoji_font,
                 "intercom_buttons": self.intercom.enabled and self.cfg["intercom"]["buttons"],
                 "intercom_talk": self.intercom.enabled and self.cfg["intercom"]["buttons"]
                 and self.cfg["intercom"]["talk"],

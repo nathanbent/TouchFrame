@@ -161,7 +161,11 @@ curl -fsSL https://github.com/nathanbent/mcast-tools/releases/latest/download/mc
 
 On the panel, add the same group to a zone's **Text displays**. Anything else that sends real-time text to the group shows too, for example `mcast text send -g 239.192.3.1:11000 "Bus is here"`.
 
-- Text pages can carry emoji; `install.sh` installs the font Chromium needs to draw them (`fonts-noto-color-emoji`).
+- Text pages can carry emoji; `install.sh` installs the font Chromium needs to draw them (`fonts-noto-color-emoji`). If emoji show as empty boxes, the font isn't there: the corner of the screen says "No emoji font". Install it and reboot (or re-run `install.sh`):
+
+  ```bash
+  sudo apt-get install -y fonts-noto-color-emoji
+  ```
 - The Pi joins the group and reports to the sender over RTCP as `name` (its host name unless set), so it shows up as a receiver on the mcast monitor.
 - The intercom panel (with mcast-tools 0.5.13 or later on its side) sends each page with what it is: the announcement's name, its priority, and its end. Such a page is shown exactly as one from the panel's API is: headed with the name, an emergency when the announcement is, up until the announcement ends, and down at once when it's stopped. So a screen with only `[multicast]` set, and no link to the panel, loses nothing. If its end never arrives, a page comes down after ten minutes. This works with any `mcast` on this Pi: 0.5.13 and later hand the page over whole, and for an older one TouchFrame reads the page's markers out of the text itself.
 - `mcast text send --page "Lunch" --priority high --hold 30 "Pizza in the hall"` sends such a page from anywhere.

@@ -912,6 +912,8 @@ function armSaver() {
 // ---------- status, toast ----------
 function drawStatus() {
   const notes = [];
+  // Only on this machine's own screen: another browser draws emoji with its own fonts.
+  if (settings.emoji_font === false && ["127.0.0.1", "localhost", "[::1]"].includes(location.hostname)) notes.push("No emoji font");
   if (weather && weather.stale) notes.push("Weather offline");
   if (calendar && calendar.stale) notes.push("Calendar offline");
   if (state && state.intercom.enabled && !state.intercom.connected) notes.push("Intercom offline");
