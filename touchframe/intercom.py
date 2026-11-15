@@ -7,7 +7,6 @@ the browser never sees it.
 """
 import json
 import logging
-import queue
 import ssl
 import threading
 import time
@@ -28,11 +27,13 @@ class IntercomError(Exception):
 
 
 class Intercom:
-    def __init__(self, cfg, on_page=None):
+    def __init__(self, cfg, alerts, on_change):
         self.cfg = cfg["intercom"]
         self.url = self.cfg["url"].rstrip("/")
         self.enabled = bool(self.url)
-        self.on_page = on_page              # called when a text page goes up
+        self.alerts = alerts                # where text pages go
+        self.on_change = on_change          # called after anything here changes
+        self._priority = {}                 # run id -> its announcement's priority
         self._ssl = None
         if self.url.startswith("https"):
             if not self.cfg["verify_tls"]:
@@ -40,9 +41,8 @@ class Intercom:
             else:
                 self._ssl = ssl.create_default_context(cafile=self.cfg["ca_file"] or None)
         self._lock = threading.Lock()
-        self._subs = set()
         self._state = {"connected": False, "error": None, "backend_ok": True,
-                       "groups": [], "runs": {}, "pages": {}}
+                       "groups": [], "runs": {}}
 
     # ---------- the panel's API ----------
     def _open(self, method, path, timeout=15):
@@ -76,10 +76,7 @@ class Intercom:
     # ---------- state ----------
     def snapshot(self):
         with self._lock:
-            now = int(time.time() * 1000)
             s = self._state
-            for run in [r for r, p in s["pages"].items() if p["until_ms"] and p["until_ms"] <= now]:
-                del s["pages"][run]
             return {
                 "enabled": self.enabled,
                 "connected": s["connected"],
@@ -87,33 +84,23 @@ class Intercom:
                 "backend_ok": s["backend_ok"],
                 "groups": s["groups"],
                 "runs": sorted(s["runs"].values(), key=lambda r: r["id"]),
-                "pages": sorted(s["pages"].values(), key=lambda p: -p["at_ms"]),
-                "now_ms": now,
             }
-
-    def subscribe(self):
-        q = queue.Queue(maxsize=50)
-        with self._lock:
-            self._subs.add(q)
-        return q
-
-    def unsubscribe(self, q):
-        with self._lock:
-            self._subs.discard(q)
-
-    def _publish(self):
-        snap = self.snapshot()
-        with self._lock:
-            for q in self._subs:
-                try:
-                    q.put_nowait(snap)
-                except queue.Full:
-                    pass                    # a stuck screen; it refetches when it reconnects
 
     def _set(self, **changes):
         with self._lock:
             self._state.update(changes)
-        self._publish()
+        self.on_change()
+
+    def _page(self, page):
+        """A text page from the panel goes up, or is given its end."""
+        zones = set(self.cfg["zones"])
+        if zones and not zones & set(page.get("zones", [])):
+            return
+        text = page["text"]
+        self.alerts.show(f"panel:{page['run']}:{page['at_ms']}", "panel", page["name"],
+                         text if isinstance(text, list) else [text],
+                         priority=self._priority.get(page["run"], "normal"),
+                         until_ms=page.get("until_ms"), at_ms=page["at_ms"])
 
     def _refresh(self):
         """Fetch everything the page shows, in the Panel's own order and groups."""
@@ -144,34 +131,34 @@ class Intercom:
             if buttons:
                 groups.append({"id": None, "name": "Other" if groups else "", "buttons": buttons})
 
-        runs = {r["id"]: _run(r) for r in self._call("GET", "/runs") if r["state"] in ACTIVE}
-        zones = ",".join(self.cfg["zones"])
-        shown = self._call("GET", "/display" + (f"?zones={urllib.parse.quote(zones)}" if zones else ""))
-        pages = {p["run"]: _page(p) for p in shown["pages"]}
+        all_runs = self._call("GET", "/runs")
+        self._priority = {r["id"]: r.get("priority", "normal") for r in all_runs}
+        runs = {r["id"]: _run(r) for r in all_runs if r["state"] in ACTIVE}
         backend = self._call("GET", "/backend")
-        self._set(connected=True, error=None, groups=groups, runs=runs, pages=pages,
+        self._set(connected=True, error=None, groups=groups, runs=runs,
                   backend_ok=bool(backend.get("connected", True)))
+        for page in reversed(self._call("GET", "/display")["pages"]):
+            self._page(page)
 
     def _event(self, name, data):
         if name == "run":
             run = data["run"]
+            if len(self._priority) > 500:
+                self._priority.clear()
+            self._priority[run["id"]] = run.get("priority", "normal")
+            if run["state"] == "stopped":
+                # Stopped by hand: its pages come down now, an emergency's too.
+                for shown in run.get("shown", []):
+                    self.alerts.end(f"panel:{run['id']}:{shown['at_ms']}", int(time.time() * 1000),
+                                    stopped=True)
             with self._lock:
                 if run["state"] in ACTIVE:
                     self._state["runs"][run["id"]] = _run(run)
                 else:
                     self._state["runs"].pop(run["id"], None)
-            self._publish()
+            self.on_change()
         elif name == "display":
-            page = data["page"]
-            zones = set(self.cfg["zones"])
-            if zones and not zones & set(page.get("zones", [])):
-                return
-            with self._lock:
-                new = page["run"] not in self._state["pages"]
-                self._state["pages"][page["run"]] = _page(page)
-            if new and self.on_page:
-                self.on_page()
-            self._publish()
+            self._page(data["page"])
         elif name == "backend":
             self._set(backend_ok=bool(data.get("status", {}).get("connected", True)))
         elif name in ("config_changed", "lagged"):
@@ -209,7 +196,8 @@ class Intercom:
             if was:
                 wait = 2
             log.warning("intercom: %s; trying again in %d s", error, wait)
-            self._set(connected=False, error=error, runs={}, pages={})
+            self._set(connected=False, error=error, runs={})
+            self.alerts.end_source("panel:")
             time.sleep(wait)
             wait = min(wait * 2, 30)
 
@@ -222,9 +210,3 @@ def _run(run):
     return {"id": run["id"], "announcement": run["announcement"], "name": run["name"],
             "state": run["state"], "priority": run.get("priority", "normal")}
 
-
-def _page(page):
-    text = page["text"]
-    return {"run": page["run"], "name": page["name"],
-            "text": text if isinstance(text, list) else [text],
-            "at_ms": page["at_ms"], "until_ms": page.get("until_ms")}

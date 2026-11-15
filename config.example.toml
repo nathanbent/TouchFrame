@@ -36,6 +36,27 @@ buttons = true                  # false: receive only. Text pages still show; no
 zones = []                      # show text pages for these zone ids only, e.g. ["kitchen"]
 categories = []                 # show buttons from these categories only ("other" = uncategorized)
 
+[multicast]
+# Text pages straight off the network, received by mcast-tools' `mcast text recv`.
+# On the panel, add each group to a zone's Text displays.
+groups = []                     # e.g. ["239.192.3.1:11000"]
+mcast = "mcast"                 # the mcast command, or its full path
+name = ""                       # reported to senders over RTCP ("" = this Pi's host name)
+interface = ""                  # IPv4 address to join on ("" = any)
+hold_seconds = 20               # how long a page from a channel stays up
+
+[alerts]
+emergency_stays = true          # an emergency page stays up, flashing, until it's tapped
+emergency_words = []            # e.g. ["fire", "lockdown"]: pages with these words are emergencies
+
+[screensaver]
+enabled = true
+idle_minutes = 5                # photos start after this long untouched (0 = never)
+folder = "~/Pictures/touchframe"   # subfolders are included
+seconds = 30                    # per photo
+picture_of_the_day = true       # add Wikimedia Commons' picture of the day
+clock = true
+
 [screen]
 backlight = "auto"              # "off" leaves the backlight alone
 brightness = 100                # percent

@@ -4,13 +4,18 @@ import json
 import logging
 import mimetypes
 import queue
+import threading
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import config
 from .agenda import Agenda
+from .alerts import Alerts
 from .intercom import Intercom, IntercomError
+from .multicast import Multicast
+from .photos import Photos
 from .screen import Screen
 from .weather import Weather
 
@@ -26,13 +31,44 @@ class App:
         self.weather = Weather(cfg, state)
         self.agenda = Agenda(cfg, state)
         self.screen = Screen(cfg)
-        self.intercom = Intercom(cfg, on_page=self.screen.wake)
+        self.photos = Photos(cfg, state)
+        self.alerts = Alerts(cfg, state, on_page=self.screen.wake)
+        self.alerts.on_change = self.publish
+        self.intercom = Intercom(cfg, self.alerts, self.publish)
+        self.multicast = Multicast(cfg, self.alerts, self.publish)
+        self._subs = set()
+        self._lock = threading.Lock()
+
+    def snapshot(self):
+        """Everything that changes by itself: the intercom, alerts and multicast groups."""
+        return {"intercom": self.intercom.snapshot(), "alerts": self.alerts.snapshot(),
+                "multicast": self.multicast.snapshot(), "now_ms": int(time.time() * 1000)}
+
+    def subscribe(self):
+        q = queue.Queue(maxsize=50)
+        with self._lock:
+            self._subs.add(q)
+        return q
+
+    def unsubscribe(self, q):
+        with self._lock:
+            self._subs.discard(q)
+
+    def publish(self):
+        snap = self.snapshot()
+        with self._lock:
+            for q in self._subs:
+                try:
+                    q.put_nowait(snap)
+                except queue.Full:
+                    pass                    # a stuck screen; it refetches when it reconnects
 
     def settings(self):
         app, weather = self.cfg["app"], self.cfg["weather"]
         return {"theme": app["theme"], "clock": app["clock"],
                 "idle_home_seconds": app["idle_home_seconds"],
                 "units": weather["units"], "intercom": self.intercom.enabled,
+                "alerts": self.intercom.enabled or bool(self.multicast.groups),
                 "intercom_buttons": self.intercom.enabled and self.cfg["intercom"]["buttons"]}
 
 
@@ -56,18 +92,23 @@ class Handler(BaseHTTPRequestHandler):
         path = (WEB / name).resolve()
         if WEB.resolve() not in path.parents or not path.is_file():
             return self._json({"error": "not found"}, 404)
+        self._send(path, "no-cache")
+
+    def _send(self, path, cache):
+        if path is None or not path.is_file():
+            return self._json({"error": "not found"}, 404)
         data = path.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", mimetypes.guess_type(path.name)[0] or "application/octet-stream")
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Cache-Control", cache)
         self.end_headers()
         self.wfile.write(data)
 
     def _events(self):
-        """Server-sent events: the intercom's state, whenever it changes."""
-        intercom = self.app.intercom
-        q = intercom.subscribe()
+        """Server-sent events: the state, whenever it changes."""
+        app = self.app
+        q = app.subscribe()
         try:
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
@@ -75,12 +116,12 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Connection", "close")
             self.end_headers()
             self.close_connection = True
-            snap = intercom.snapshot()
+            snap = app.snapshot()
             while True:
                 if snap is None:
                     self.wfile.write(b": keep-alive\n\n")
                 else:
-                    self.wfile.write(b"event: intercom\ndata: " + json.dumps(snap).encode() + b"\n\n")
+                    self.wfile.write(b"event: state\ndata: " + json.dumps(snap).encode() + b"\n\n")
                 self.wfile.flush()
                 try:
                     snap = q.get(timeout=15)
@@ -89,7 +130,7 @@ class Handler(BaseHTTPRequestHandler):
         except OSError:
             pass                            # the page went away
         finally:
-            intercom.unsubscribe(q)
+            app.unsubscribe(q)
 
     def do_GET(self):
         path = urllib.parse.urlsplit(self.path).path
@@ -101,8 +142,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(app.weather.get())
             elif path == "/api/calendar":
                 self._json(app.agenda.get())
-            elif path == "/api/intercom":
-                self._json(app.intercom.snapshot())
+            elif path == "/api/state":
+                self._json(app.snapshot())
+            elif path == "/api/photos":
+                self._json(app.photos.list())
+            elif path.startswith("/photo/"):
+                self._send(app.photos.file(urllib.parse.unquote(path[7:])), "max-age=3600")
+            elif path == "/photo-of-the-day":
+                self._send(app.photos.potd_image, "max-age=86400")
             elif path == "/api/events":
                 self._events()
             elif path.startswith("/api/"):
@@ -127,6 +174,12 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/screen/wake":
                 app.screen.wake()
+                self._json({"ok": True})
+            elif path.startswith("/api/alerts/close/"):
+                app.alerts.close(int(path.rsplit("/", 1)[1]))
+                self._json({"ok": True})
+            elif path == "/api/alerts/seen":
+                app.alerts.seen_all()
                 self._json({"ok": True})
             elif path.startswith("/api/intercom/") and not app.cfg["intercom"]["buttons"]:
                 self._json({"error": "this screen only receives"}, 403)
@@ -158,6 +211,7 @@ def main():
     app = App(cfg)
     app.screen.start()
     app.intercom.start()
+    app.multicast.start()
 
     Handler.app = app
     server = ThreadingHTTPServer((host or "127.0.0.1", int(port)), Handler)

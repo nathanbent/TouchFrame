@@ -16,10 +16,10 @@ function h(tag, props, ...kids) {
   return el;
 }
 
-let settings = { theme: "dark", clock: "12h", idle_home_seconds: 120, intercom: false };
+let settings = { theme: "dark", clock: "12h", idle_home_seconds: 120, intercom: false, alerts: false };
 let weather = null;
 let calendar = null;
-let intercom = null;
+let state = null;          // {intercom, alerts, multicast, now_ms}: what the server pushes
 
 // ---------- weather icons ----------
 const SVG = "http://www.w3.org/2000/svg";
@@ -85,6 +85,7 @@ function drawClock() {
   $("time").textContent = c.text;
   $("ampm").textContent = c.ampm;
   $("date").textContent = `${WEEKDAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}`;
+  $("saver-clock").textContent = c.text + (c.ampm ? ` ${c.ampm}` : "");
 }
 
 function drawWeather() {
@@ -243,10 +244,8 @@ async function press(button, run) {
 }
 
 function drawIntercom() {
-  const ic = intercom;
-  if (!ic || !ic.enabled) return;
-  drawStatus();
-  if (!settings.intercom_buttons) return drawPage();     // receive only: text pages, no buttons
+  const ic = state && state.intercom;
+  if (!ic || !ic.enabled || !settings.intercom_buttons) return;    // receive only: no buttons
   $("tab-intercom").hidden = false;
   const runs = ic.runs;
 
@@ -283,31 +282,129 @@ function drawIntercom() {
       h("span", {}, runs.length === 1 ? runs[0].name : `${runs.length} playing`),
       h("button", { onclick: () => post("/api/intercom/stop").catch(e => toast(e.message)) }, "■ Stop"));
   }
-  drawPage();
-  drawStatus();
 }
 
-// A text page takes over the screen while it's up.
-const dismissed = new Set();
-let pageTimer = null;
+// ---------- alerts ----------
+// A text page takes over the screen while it's up. An emergency flashes red
+// and stays until someone taps it.
+let pageTimer = null, pageShown = null;
 
 function drawPage() {
   clearTimeout(pageTimer);
   const el = $("page");
-  const skew = intercom ? intercom.now_ms - intercom.at : 0;      // the server's clock minus ours
-  const now = Date.now() + skew;
-  const pages = intercom ? intercom.pages.filter(p => !dismissed.has(p.run) && (!p.until_ms || p.until_ms > now)) : [];
-  if (!pages.length) { el.hidden = true; return; }
+  const now = Date.now() + (state ? state.now_ms - state.at : 0);     // by the server's clock
+  const pages = state ? state.alerts.pages.filter(p => p.sticky || !p.until_ms || p.until_ms > now) : [];
+  if (!pages.length) { el.hidden = true; pageShown = null; return; }
   const page = pages[0];
-  $("page-name").textContent = page.name;
+  $("page-name").textContent = page.name + (pages.length > 1 ? `  (+${pages.length - 1} more)` : "");
+  $("page-hint").textContent = page.sticky ? "Tap to acknowledge" : "Tap to close";
   const text = $("page-text");
   text.replaceChildren(...page.text.map(line => h("div", {}, line)));
+  el.className = `page ${page.priority}`;
   el.hidden = false;
+  if (pageShown !== page.id) {
+    // A new one: flash, so it's noticed from across the room.
+    pageShown = page.id;
+    el.classList.remove("arrive"); void el.offsetWidth; el.classList.add("arrive");
+    endSaver();
+  } else el.classList.add("arrive");
   // The biggest type that fits.
   let size = 6;
   do { text.style.fontSize = `${size}rem`; size -= .25; } while (size > 1 && text.scrollHeight > text.clientHeight);
-  el.onclick = () => { dismissed.add(page.run); drawPage(); };
-  if (page.until_ms) pageTimer = setTimeout(drawPage, Math.max(250, page.until_ms - now));
+  el.onclick = () => post(`/api/alerts/close/${page.id}`).catch(e => toast(e.message));
+  const next = Math.min(...pages.filter(p => p.until_ms && !p.sticky).map(p => p.until_ms));
+  if (Number.isFinite(next)) pageTimer = setTimeout(drawPage, Math.max(250, next - now));
+}
+
+function ago(ms) {
+  const d = new Date(ms), today = ymd(new Date());
+  if (ymd(d) === today) return clockText(d);
+  return `${WEEKDAYS[d.getDay()].slice(0, 3)} ${d.getDate()} ${clockText(d)}`;
+}
+
+function drawAlerts() {
+  if (!state) return;
+  const al = state.alerts, ic = state.intercom;
+  $("tab-alerts").hidden = !settings.alerts;
+  const badge = $("badge");
+  badge.hidden = !al.unseen;
+  badge.textContent = al.unseen;
+
+  // Where alerts come from, and whether each is working.
+  const sources = [];
+  if (ic.enabled) sources.push(h("span", { class: `src ${ic.connected ? "ok" : "bad"}` }, ic.connected ? "Intercom panel" : "Intercom panel offline"));
+  for (const g of state.multicast) {
+    sources.push(h("span", { class: `src ${g.listening ? "ok" : "bad"}`, title: g.error || "" },
+      g.listening ? `Multicast ${g.group}${g.pages ? ` · ${g.pages} heard` : ""}` : `Multicast ${g.group}: ${g.error || "starting"}`));
+  }
+  $("al-sources").replaceChildren(...sources);
+
+  const list = $("al-list");
+  list.replaceChildren(...al.history.map(a =>
+    h("div", { class: `alert ${a.priority}${a.seen ? "" : " unseen"}` },
+      h("div", { class: "al-when" }, ago(a.at_ms)),
+      h("div", { class: "al-body" },
+        h("div", { class: "al-text" }, a.text.join(" ")),
+        h("div", { class: "al-from" }, [a.name, ...a.sources.map(s => s === "panel" ? "via panel" : `via ${s}`)].join(" · "))))));
+  if (!al.history.length) list.append(h("div", { class: "empty" }, "No alerts yet"));
+  if (document.querySelector("#alerts.active") && al.unseen && !al.pages.length) markSeen();
+}
+
+let marking = false;
+function markSeen() {
+  if (marking) return;
+  marking = true;
+  // Left bold for a moment, so the new ones can be told from the old.
+  setTimeout(() => { marking = false; post("/api/alerts/seen").catch(() => {}); }, 4000);
+}
+
+// ---------- screensaver ----------
+let saver = null, saverTimer = null, saverIdle = null, saverOrder = [], saverFront = false;
+
+async function loadPhotos() {
+  try { saver = await get("/api/photos"); } catch { /* keep the last list */ }
+}
+
+function nextPhoto() {
+  if (!saver || !saver.photos.length) return endSaver();
+  if (!saverOrder.length) {
+    saverOrder = saver.photos.map((_, i) => i).sort(() => Math.random() - .5);
+  }
+  const photo = saver.photos[saverOrder.pop() % saver.photos.length];
+  const img = new Image();
+  img.onload = () => {
+    // Two layers, cross-faded.
+    saverFront = !saverFront;
+    const show = $(saverFront ? "saver-a" : "saver-b"), hide = $(saverFront ? "saver-b" : "saver-a");
+    show.style.backgroundImage = `url("${photo.src}")`;
+    show.classList.add("on"); hide.classList.remove("on");
+    $("saver-caption").textContent = photo.caption;
+  };
+  img.onerror = () => { clearTimeout(saverTimer); saverTimer = setTimeout(nextPhoto, 1000); };
+  img.src = photo.src;
+  clearTimeout(saverTimer);
+  saverTimer = setTimeout(nextPhoto, Math.max(5, saver.seconds) * 1000);
+}
+
+async function startSaver() {
+  await loadPhotos();
+  if (!saver || !saver.enabled || !saver.photos.length || !$("page").hidden) return armSaver();
+  $("saver").hidden = false;
+  $("saver-clock").hidden = !saver.clock;
+  nextPhoto();
+}
+
+function endSaver() {
+  clearTimeout(saverTimer);
+  if (!$("saver").hidden) { $("saver").hidden = true; armSaver(); }
+}
+
+// The tap that ends it is used up here, so it can't press what's underneath.
+$("saver").addEventListener("click", endSaver);
+
+function armSaver() {
+  clearTimeout(saverIdle);
+  if (saver && saver.enabled && saver.idle_minutes > 0) saverIdle = setTimeout(startSaver, saver.idle_minutes * 60000);
 }
 
 // ---------- status, toast, tabs ----------
@@ -315,7 +412,8 @@ function drawStatus() {
   const notes = [];
   if (weather && weather.stale) notes.push("Weather offline");
   if (calendar && calendar.stale) notes.push("Calendar offline");
-  if (intercom && intercom.enabled && !intercom.connected) notes.push("Intercom offline");
+  if (state && state.intercom.enabled && !state.intercom.connected) notes.push("Intercom offline");
+  if (state && state.multicast.some(g => !g.listening)) notes.push("Multicast off");
   const where = weather && weather.location;
   $("status").textContent = notes.join(" · ") || where || "";
 }
@@ -331,6 +429,7 @@ function toast(text) {
 function show(view) {
   for (const el of document.querySelectorAll(".view")) el.classList.toggle("active", el.id === view);
   for (const el of document.querySelectorAll("nav > button")) el.classList.toggle("active", el.dataset.view === view);
+  if (view === "alerts" && state && state.alerts.unseen) markSeen();
 }
 for (const el of document.querySelectorAll("nav > button")) el.addEventListener("click", () => show(el.dataset.view));
 $("stop-all").addEventListener("click", () => post("/api/intercom/stop").catch(e => toast(e.message)));
@@ -340,6 +439,7 @@ $("stop-all").addEventListener("click", () => post("/api/intercom/stop").catch(e
 let idleTimer = null, lastWake = 0;
 function touched() {
   clearTimeout(idleTimer);
+  if ($("saver").hidden) armSaver();
   if (settings.idle_home_seconds > 0) {
     idleTimer = setTimeout(() => { $("confirm").hidden = true; show("home"); }, settings.idle_home_seconds * 1000);
   }
@@ -372,10 +472,10 @@ async function loadCalendar() {
 
 function listen() {
   const es = new EventSource("/api/events");
-  es.addEventListener("intercom", e => {
-    intercom = JSON.parse(e.data);
-    intercom.at = Date.now();
-    drawIntercom();
+  es.addEventListener("state", e => {
+    state = JSON.parse(e.data);
+    state.at = Date.now();
+    drawIntercom(); drawAlerts(); drawPage(); drawStatus();
   });
 }
 
@@ -389,7 +489,8 @@ async function start() {
   setInterval(loadWeather, 5 * 60 * 1000);
   // Redrawn every minute too, so events that end drop off and midnight rolls over.
   setInterval(loadCalendar, 60 * 1000);
-  if (settings.intercom) listen();
+  listen();
+  await loadPhotos();
   touched();
 }
 start();

@@ -28,6 +28,11 @@
     <div class="agenda" id="agenda"></div>
   </section>
 
+  <section id="alerts" class="view">
+    <div class="al-head" id="al-sources"></div>
+    <div class="al-list" id="al-list"></div>
+  </section>
+
   <section id="intercom" class="view">
     <div class="ic-head">
       <div class="ic-status" id="ic-status"></div>
@@ -40,15 +45,25 @@
 <nav>
   <button data-view="home" class="active">Home</button>
   <button data-view="calendar">Calendar</button>
+  <button data-view="alerts" id="tab-alerts" hidden>Alerts<span class="badge" id="badge" hidden></span></button>
   <button data-view="intercom" id="tab-intercom" hidden>Intercom</button>
   <div class="playing" id="playing" hidden></div>
   <div class="status" id="status"></div>
 </nav>
 
+<div class="saver" id="saver" hidden>
+  <div class="saver-photo" id="saver-a"></div>
+  <div class="saver-photo" id="saver-b"></div>
+  <div class="saver-info">
+    <div class="saver-caption" id="saver-caption"></div>
+    <div class="saver-clock" id="saver-clock"></div>
+  </div>
+</div>
+
 <div class="page" id="page" hidden>
   <div class="page-name" id="page-name"></div>
   <div class="page-text" id="page-text"></div>
-  <div class="page-hint">Tap to close</div>
+  <div class="page-hint" id="page-hint"></div>
 </div>
 
 <div class="confirm" id="confirm" hidden>

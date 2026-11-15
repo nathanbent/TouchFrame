@@ -17,6 +17,7 @@ echo "== Python environment in $VENV"
 echo "== Config"
 [ -f "$DIR/config.toml" ] || cp "$DIR/config.example.toml" "$DIR/config.toml"
 chmod 600 "$DIR/config.toml"    # it holds calendar links and the intercom token
+mkdir -p "$HOME/Pictures/touchframe"
 
 echo "== Backlight (so the screen can dim at night)"
 echo 'SUBSYSTEM=="backlight", ACTION=="add", RUN+="/bin/chgrp video /sys/class/backlight/%k/brightness", RUN+="/bin/chmod g+w /sys/class/backlight/%k/brightness"' \
@@ -43,5 +44,6 @@ EOF
 echo
 echo "Done. Next:"
 echo "  1. Set your location (and calendars, and the intercom) in $DIR/config.toml"
-echo "  2. sudo systemctl start touchframe"
-echo "  3. Reboot, or run $DIR/kiosk.sh from the desktop"
+echo "  2. Copy photos into $HOME/Pictures/touchframe for the screensaver"
+echo "  3. sudo systemctl start touchframe"
+echo "  4. Reboot, or run $DIR/kiosk.sh from the desktop"

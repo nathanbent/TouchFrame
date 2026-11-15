@@ -40,7 +40,7 @@ nav {
   padding: 0 .5rem; background: var(--surface); border-top: 1px solid var(--line);
 }
 nav > button {
-  min-width: 7.5rem; padding: 0 1rem; font-size: 1.1rem; font-weight: 600; color: var(--muted);
+  min-width: 6.4rem; padding: 0 1rem; font-size: 1.1rem; font-weight: 600; color: var(--muted);
   border-top: .2rem solid transparent;
 }
 nav > button.active { color: var(--text); border-top-color: var(--accent); }
@@ -173,3 +173,42 @@ nav .playing:not([hidden]) + .status { margin-left: .6rem; }
   max-width: 90vw; padding: .7rem 1.1rem; border-radius: .7rem;
   background: var(--text); color: var(--bg); font-weight: 600;
 }
+
+/* ---------- alerts ---------- */
+nav > button { position: relative; }
+.badge {
+  position: absolute; top: .45rem; right: .5rem; min-width: 1.4rem; height: 1.4rem; padding: 0 .35rem;
+  border-radius: 1rem; background: var(--c-red); color: #fff; font-size: .85rem; font-weight: 700; line-height: 1.4rem;
+}
+#alerts { flex-direction: column; gap: .5rem; }
+.al-head { display: flex; flex-wrap: wrap; gap: .4rem; flex: none; }
+.src { padding: .25rem .7rem; border-radius: 1rem; background: var(--surface); font-size: .85rem; color: var(--muted); }
+.src::before { content: ""; display: inline-block; width: .55rem; height: .55rem; border-radius: 50%; margin-right: .45rem; background: var(--c-green); }
+.src.bad { color: var(--storm); } .src.bad::before { background: var(--c-red); }
+.al-list { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: .4rem; }
+.alert { display: flex; gap: .8rem; padding: .55rem .8rem; border-radius: .7rem; background: var(--surface); border-left: .3rem solid var(--line); }
+.alert.high { border-left-color: var(--c-orange); } .alert.emergency { border-left-color: var(--c-red); }
+.al-when { flex: none; width: 5.6rem; color: var(--muted); font-size: .9rem; padding-top: .1rem; }
+.al-body { min-width: 0; }
+.al-text { font-size: 1.1rem; }
+.alert.unseen .al-text { font-weight: 700; }
+.alert.unseen .al-when { color: var(--accent); font-weight: 700; }
+.al-from { font-size: .8rem; color: var(--muted); margin-top: .1rem; }
+
+.page.arrive { animation: arrive .9s ease-out; }
+.page.high .page-name { color: var(--c-orange); }
+.page.emergency { background: #b3161b; color: #fff; animation: alarm 1s steps(1) infinite; }
+.page.emergency .page-name, .page.emergency .page-hint { color: #fff; }
+@keyframes arrive { 0%, 40% { background: var(--accent); } 20%, 60% { background: var(--bg); } }
+@keyframes alarm { 0% { background: #b3161b; } 50% { background: #e8262d; } }
+
+/* ---------- screensaver ---------- */
+.saver { position: fixed; inset: 0; z-index: 5; background: #000; }
+.saver-photo { position: absolute; inset: 0; background: center / cover no-repeat; opacity: 0; transition: opacity 1.5s; }
+.saver-photo.on { opacity: 1; }
+.saver-info {
+  position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem;
+  padding: 2.5rem 1rem .7rem; color: #fff; background: linear-gradient(transparent, rgba(0, 0, 0, .65));
+}
+.saver-caption { font-size: .85rem; opacity: .9; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.saver-clock { flex: none; font-size: 2.6rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }

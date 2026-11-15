@@ -34,6 +34,25 @@ DEFAULTS = {
         "zones": [],                # show text pages for these zones only ([] = all)
         "categories": [],           # show buttons in these categories only ([] = all)
     },
+    "multicast": {
+        "groups": [],               # text channels to show, e.g. ["239.192.3.1:11000"]
+        "mcast": "mcast",           # the mcast-tools command (or its full path)
+        "name": "",                 # reported to senders over RTCP ("" = the host name)
+        "interface": "",            # IPv4 address to join on ("" = any)
+        "hold_seconds": 20,         # how long a page from a channel stays up
+    },
+    "alerts": {
+        "emergency_stays": True,    # an emergency page stays up until it's tapped
+        "emergency_words": [],      # pages with any of these words are emergencies
+    },
+    "screensaver": {
+        "enabled": True,
+        "idle_minutes": 5,
+        "folder": "~/Pictures/touchframe",
+        "seconds": 30,              # per photo
+        "picture_of_the_day": True, # add Wikimedia Commons' picture of the day
+        "clock": True,
+    },
     "screen": {
         "backlight": "auto",        # a directory under /sys/class/backlight, "auto" or "off"
         "brightness": 100,          # percent
