@@ -23,6 +23,7 @@ A home dashboard for the Raspberry Pi Touch Display (7", 800x480): the time, wea
 - **Lab:** Overview and Problems are side by side. Swipe between them, or tap a Prometheus or Zabbix tile.
 - **Photos:** swipe for the next photo or the one before. A tap brings the dashboard back.
 - **An alert:** tap it to close it.
+- **Alerts tab:** tap an alert for all of it, and *Show again* to put it back on the screen. Swipe it left to archive it.
 
 Everything meant to be pressed is at least 48 pixels tall on the 7" display, about 9 mm. The screen goes back to its first tab after two minutes untouched.
 
@@ -137,6 +138,8 @@ A text page takes over the whole screen in large type, whichever tab (or photo) 
 - **Emergency** pages turn the screen red, keep flashing, and stay up until someone taps them, even after the announcement has ended. One stopped by hand on the panel comes down at once. `emergency_stays = false` under `[alerts]` lets them come down like any other.
 - **High** priority pages have an orange heading.
 - The **Alerts** tab lists the last 50, newest first, with the time and how each arrived. Its badge counts the ones nobody has tapped or looked at since, so a page that came and went with nobody in the room isn't lost. Opening the tab clears the count. The list is kept across restarts.
+- Tap an alert in the list for the whole of it: when it came, its priority, every way it arrived, all its lines and its picture. *Show again* puts it back on the screen as it first appeared (without the flash) until it's tapped, or for a minute.
+- Swipe an alert left, or tap *Archive* in its details, to archive it. *Archive all* clears the list in one go, after asking. Archived alerts are under *Archived*, kept across restarts like the rest (the last 50 of them, apart from the 50 in the list); swipe one left there to put it back.
 
 ![The Alerts tab](docs/alerts.png)
 

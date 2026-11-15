@@ -12,7 +12,7 @@ import time
 
 log = logging.getLogger(__name__)
 
-KEEP = 50               # alerts kept in the history
+KEEP = 50               # alerts kept in the history, and as many again archived
 SAME_WITHIN_MS = 30000  # the same words from another source within this long are one alert
 
 
@@ -31,9 +31,10 @@ class Alerts:
         self._closed = set()            # keys closed by hand: a source can't put them back up
         self._history = []
         try:
-            self._history = json.loads(self.file.read_text())[:KEEP]
+            self._history = json.loads(self.file.read_text())
         except (OSError, ValueError):
             pass
+        self._trim()
         self._next = max([a["id"] for a in self._history], default=0) + 1
 
     def _priority(self, text, priority):
@@ -41,6 +42,17 @@ class Alerts:
         if any(w.lower() in words for w in self.cfg["emergency_words"]):
             return "emergency"
         return priority
+
+    def _trim(self):
+        """Keep the newest KEEP of the history, and the newest KEEP of the archive."""
+        kept = {False: 0, True: 0}
+        history = []
+        for entry in self._history:
+            archived = bool(entry.get("archived"))
+            if kept[archived] < KEEP:
+                kept[archived] += 1
+                history.append(entry)
+        self._history = history
 
     def _save(self):
         try:
@@ -97,7 +109,7 @@ class Alerts:
                 self._next += 1
                 self._pages[page["id"]] = page
                 self._history.insert(0, {"id": page["id"], "at_ms": page["at_ms"], "seen": False})
-                del self._history[KEEP:]
+                self._trim()
             # The panel knows the announcement's name, priority and when it ends;
             # a multicast channel only carries the words.
             if source == "panel":
@@ -159,6 +171,28 @@ class Alerts:
             self._save()
         self._changed()
 
+    def archive(self, alert_id, archived=True):
+        """Move one alert out of the history into the archive (or back). An
+        archived alert counts as seen."""
+        with self._lock:
+            for entry in self._history:
+                if entry["id"] == alert_id:
+                    entry["archived"] = archived
+                    entry["seen"] = True
+            self._trim()
+            self._save()
+        self._changed()
+
+    def archive_all(self):
+        """Archive everything in the history."""
+        with self._lock:
+            for entry in self._history:
+                entry["archived"] = True
+                entry["seen"] = True
+            self._trim()
+            self._save()
+        self._changed()
+
     def snapshot(self):
         now = now_ms()
         with self._lock:
@@ -171,5 +205,5 @@ class Alerts:
                 "pages": [{k: p[k] for k in ("id", "name", "text", "priority", "sources",
                                              "at_ms", "until_ms", "sticky", "image")} for p in pages],
                 "history": [dict(e) for e in self._history if "text" in e],
-                "unseen": sum(1 for e in self._history if not e["seen"]),
+                "unseen": sum(1 for e in self._history if not e["seen"] and not e.get("archived")),
             }

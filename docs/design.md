@@ -65,7 +65,7 @@ Chips sit on the card colour, not on a tint of their own hue: a tinted chip meas
 - **Size.** `--tap` is 3rem: 48px on the 800x480 display, about 9 mm. Tabs, steppers, switches, dialog buttons and the month arrows are at least that. Segmented controls are 2.6rem tall inside a 3rem track.
 - **No hover, no tooltips.** Pressed states use `:active`. Nothing is explained only in a `title`.
 - **Swipes follow the finger.** A sideways drag moves the page with it and settles to the nearer side; a flick counts even when short. Past the first or last page it gives a little and springs back.
-- **One direction per surface.** Pages move sideways and lists scroll up and down. The only sideways scrollers are the hourly and daily strips; a swipe that starts on them scrolls them. On the month, a swipe turns the month.
+- **One direction per surface.** Pages move sideways and lists scroll up and down. The only sideways scrollers are the hourly and daily strips; a swipe that starts on them scrolls them. On the month, a swipe turns the month. An alert in the Alerts list swipes left to archive (or restore) it, with the word for what it will do showing behind; to the right it only gives a little. A slow drag that stops short springs back; a flick counts only if the finger was still moving when it lifted.
 - **Show there is more.** Lists fade at the bottom edge. The strips show half of the next column.
 - **A swipe is never a press.** The click that would follow a drag is swallowed. The touch that ends the screensaver does not reach what is underneath.
 - **Ask before anything loud or disruptive:** emergency announcements, restarting, opening the Pi to the network.

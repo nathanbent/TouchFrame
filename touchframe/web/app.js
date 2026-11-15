@@ -613,32 +613,40 @@ function drawIntercom() {
 // A text page takes over the screen while it's up. An emergency flashes red
 // and stays until someone taps it.
 let pageTimer = null, pageShown = null;
+let replay = null;          // an alert from the list, shown again on request
+const REPLAY_MS = 60000;    // and taken down after this long, if nobody does
 
 function drawPage() {
   clearTimeout(pageTimer);
   const el = $("page");
   const now = Date.now() + (state ? state.now_ms - state.at : 0);     // by the server's clock
   const pages = state ? state.alerts.pages.filter(p => p.sticky || !p.until_ms || p.until_ms > now) : [];
+  if (pages.length) replay = null;      // a live one takes the screen from one shown again
+  else if (replay) pages.push({ ...replay, replay: true });
   if (!pages.length) { el.hidden = true; pageShown = null; return; }
   const page = pages[0];
   $("page-name").textContent = page.name + (pages.length > 1 ? `  (+${pages.length - 1} more)` : "");
-  $("page-hint").textContent = page.sticky ? "Tap to acknowledge" : "Tap to close";
+  $("page-hint").textContent = page.replay ? `Shown again, from ${ago(page.at_ms)}. Tap to close`
+    : page.sticky ? "Tap to acknowledge" : "Tap to close";
   const text = $("page-text");
   text.replaceChildren(...page.text.map(line => h("div", {}, line)));
   el.className = `page ${page.priority}${page.image ? " pictured" : ""}`;
   $("page-image").hidden = !page.image;
   $("page-image").style.backgroundImage = page.image ? `url("${page.image}")` : "";
   el.hidden = false;
+  if (page.replay) pageShown = page.id;   // no flash: someone asked for it
   if (pageShown !== page.id) {
     // A new one: flash, so it's noticed from across the room.
     pageShown = page.id;
     el.classList.remove("arrive"); void el.offsetWidth; el.classList.add("arrive");
     endSaver();
-  } else el.classList.add("arrive");
+  } else if (!page.replay) el.classList.add("arrive");
   // The biggest type that fits.
   let size = page.image ? 1.2 : 6;
   do { text.style.fontSize = `${size}rem`; size -= .25; } while (size > 1 && text.scrollHeight > text.clientHeight);
-  el.onclick = () => post(`/api/alerts/close/${page.id}`).catch(e => toast(e.message));
+  el.onclick = page.replay ? () => { replay = null; drawPage(); }
+    : () => post(`/api/alerts/close/${page.id}`).catch(e => toast(e.message));
+  if (page.replay) { pageTimer = setTimeout(() => { replay = null; drawPage(); }, REPLAY_MS); return; }
   const next = Math.min(...pages.filter(p => p.until_ms && !p.sticky).map(p => p.until_ms));
   if (Number.isFinite(next)) pageTimer = setTimeout(drawPage, Math.max(250, next - now));
 }
@@ -650,6 +658,13 @@ function ago(ms) {
 }
 
 const showPicture = src => detail(h("img", { class: "detail-image", src, alt: "" }));
+
+const via = a => a.sources.map(s => s === "panel" ? "via panel" : `via ${s}`);
+const PRIORITY = { high: "High priority", emergency: "Emergency" };
+
+// The list: the recent ones, or the archived ones. Tap one for the whole of
+// it; swipe it left to archive it (or, in Archived, to bring it back).
+let alShow = "recent";
 
 function drawAlerts() {
   if (!state) return;
@@ -665,16 +680,64 @@ function drawAlerts() {
   }
   $("al-sources").replaceChildren(...sources);
 
+  const recent = al.history.filter(a => !a.archived), archived = al.history.filter(a => a.archived);
+  if (alShow === "archived" && !archived.length) alShow = "recent";
+  const archiving = alShow === "recent";
+  put($("al-tools"),
+    archived.length > 0 && seg([["recent", "Recent"], ["archived", `Archived (${archived.length})`]], alShow,
+      v => { alShow = v; drawAlerts(); $("al-list").scrollTop = 0; }),
+    archiving && recent.length > 0 && h("button", { class: "btn", onclick: archiveAll }, "Archive all"));
+
+  const shown = archiving ? recent : archived;
   const list = $("al-list");
-  list.replaceChildren(...al.history.map(a =>
-    h("div", { class: `alert card ${a.priority}${a.seen ? "" : " unseen"}` },
-      a.image && h("img", { class: "al-thumb", src: a.image, alt: "", onclick: () => showPicture(a.image) }),
-      h("div", { class: "al-when" }, ago(a.at_ms)),
-      h("div", { class: "al-body" },
-        h("div", { class: "al-text" }, a.text.join(" ")),
-        h("div", { class: "al-from" }, [a.name, ...a.sources.map(s => s === "panel" ? "via panel" : `via ${s}`)].join(DOT))))));
-  if (!al.history.length) list.append(h("div", { class: "empty" }, "No alerts yet"));
+  list.replaceChildren(...shown.map(a =>
+    h("div", { class: "al-row", "data-swipe": "row", "data-id": a.id, "data-restore": archiving ? null : "" },
+      h("div", { class: "al-behind" }, archiving ? "Archive" : "Restore"),
+      h("div", { class: `alert card ${a.priority}${a.seen ? "" : " unseen"}`, onclick: () => alertDetail(a) },
+        a.image && h("img", { class: "al-thumb", src: a.image, alt: "" }),
+        h("div", { class: "al-when" }, ago(a.at_ms)),
+        h("div", { class: "al-body" },
+          h("div", { class: "al-text" }, a.text.join(" ")),
+          h("div", { class: "al-from" }, [a.name, ...via(a)].join(DOT)))))));
+  if (!shown.length) list.append(h("div", { class: "empty" }, archived.length ? "Nothing new. Older alerts are under Archived." : "No alerts yet"));
+  else list.append(h("div", { class: "al-hint" }, archiving ? "Tap an alert for more. Swipe it left to archive it." : "Swipe an alert left to put it back in Recent."));
   if (current === "alerts" && al.unseen && !al.pages.length) markSeen();
+}
+
+/** One alert, all of it, with what can be done with it. */
+function alertDetail(a) {
+  closeDialog();
+  const when = new Date(a.at_ms);
+  const act = (path, done) => () => { closeDialog(); post(path).then(done).catch(e => toast(e.message)); };
+  put($("dialog"), h("div", { class: "dialog-box wide card" },
+    h("div", { class: "detail-text scroll" },
+      h("h1", {}, a.name),
+      h("p", { class: "muted" }, [`${WEEKDAYS[when.getDay()]}, ${MONTHS[when.getMonth()]} ${when.getDate()}, ${clockText(when)}`,
+        PRIORITY[a.priority], ...via(a), a.archived && "Archived"].filter(Boolean).join(DOT)),
+      a.text.map(line => h("p", { class: "al-detail-line" }, line)),
+      a.image && h("img", { class: "detail-image", src: a.image, alt: "" })),
+    h("div", { class: "dialog-buttons" },
+      h("button", { class: "btn", onclick: () => closeDialog() }, "Close"),
+      a.archived
+        ? h("button", { class: "btn", onclick: act(`/api/alerts/restore/${a.id}`) }, "Restore")
+        : h("button", { class: "btn", onclick: act(`/api/alerts/archive/${a.id}`) }, "Archive"),
+      h("button", { class: "btn primary", onclick: () => { closeDialog(); replay = a; drawPage(); } }, "Show again"))));
+  $("dialog").hidden = false;
+}
+
+async function archiveAll() {
+  const n = state.alerts.history.filter(a => !a.archived).length;
+  if (!await ask(`Archive ${n === 1 ? "the alert" : `all ${n} alerts`}?`, { sub: "They stay under Archived.", yes: "Archive all" })) return;
+  post("/api/alerts/archive-all").catch(e => toast(e.message));
+}
+
+/** A row swiped far enough: slide it away, and archive (or restore) it. */
+function swipedRow(row) {
+  row.classList.add("gone");
+  const id = row.dataset.id, restore = row.dataset.restore !== undefined;
+  setTimeout(() => post(`/api/alerts/${restore ? "restore" : "archive"}/${id}`).catch(e => {
+    toast(e.message); drawAlerts();
+  }), 180);
 }
 
 let marking = false;
@@ -1053,7 +1116,8 @@ document.addEventListener("keydown", e => {
     if (!e.isPrimary || e.button > 0 || e.target.closest(".hscroll, input")) return;
     if (settling) settle();
     drag = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastT: e.timeStamp, v: 0,
-             locked: false, month: !!e.target.closest('[data-swipe="month"]'), other: null, dx: 0 };
+             locked: false, month: !!e.target.closest('[data-swipe="month"]'), other: null, dx: 0,
+             row: e.target.closest('[data-swipe="row"]') };
   });
 
   main.addEventListener("pointermove", e => {
@@ -1073,6 +1137,12 @@ document.addEventListener("keydown", e => {
       drag.lastX = e.clientX; drag.lastT = e.timeStamp;
     }
     drag.dx = dx;
+    if (drag.row) {
+      // An alert follows the finger to the left; to the right it only gives a little.
+      drag.row.classList.add("dragging");
+      drag.row.lastChild.style.transform = `translateX(${dx < 0 ? dx : dx * .15}px)`;
+      return;
+    }
     if (drag.month || !dx) return;
     const other = pages[pages.indexOf(current) + (dx < 0 ? 1 : -1)] || null;
     if (other !== drag.other) {
@@ -1093,6 +1163,13 @@ document.addEventListener("keydown", e => {
     swallow = performance.now() + 350;      // this was a swipe, not a press
     if (d.month) {
       if (!cancelled && Math.abs(d.dx) > 40) shiftMonth(d.dx < 0 ? 1 : -1);
+      return;
+    }
+    if (d.row) {
+      const card = d.row.lastChild, flick = d.v < -.4 && d.dx < -20 && e.timeStamp - d.lastT < 100;
+      d.row.classList.remove("dragging");
+      if (!cancelled && (flick || d.dx < -d.row.clientWidth * .35)) return swipedRow(d.row);
+      card.style.transform = "";
       return;
     }
     const flick = Math.abs(d.v) > .4 && Math.sign(d.v) === Math.sign(d.dx);
