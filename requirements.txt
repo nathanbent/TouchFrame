@@ -1,3 +1,4 @@
 icalendar>=6.0
 recurring-ical-events>=3.0
 pillow>=10.1
+segno>=1.5

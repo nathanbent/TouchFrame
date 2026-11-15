@@ -10,7 +10,8 @@ DEFAULTS = {
         "theme": "dark",            # "dark", "light" or "auto" (light by day, dark at night)
         "clock": "12h",             # or "24h"
         "remote_view": False,       # True lets other machines open the dashboard (no sign-in)
-        "idle_home_seconds": 120,   # go back to the Home tab after this long untouched (0 = never)
+        "idle_home_seconds": 120,   # go back to the first tab after this long untouched (0 = never)
+        "tabs": [],                 # the tabs to show, in order, e.g. ["home", "lab"] ([] = all)
     },
     # [weather] and [calendar] take the same settings as InkFrame's.
     "weather": {
@@ -47,14 +48,14 @@ DEFAULTS = {
         "emergency_words": [],      # pages with any of these words are emergencies
     },
     "prometheus": {
-        "url": "",                  # e.g. "http://10.0.30.10:9090"; "" = off
+        "url": "",                  # e.g. "http://192.0.2.20:9090"; "" = off
         "token": "",
         "verify_tls": True,
         "ignore_jobs": [],          # jobs left out of the counts
         "interval_seconds": 60,
     },
     "zabbix": {
-        "url": "",                  # e.g. "http://10.0.30.20:180"; "" = off
+        "url": "",                  # e.g. "http://192.0.2.30"; "" = off
         "token": "",                # an API token (Users > API tokens)
         "verify_tls": True,
         "min_severity": 2,          # 2 Warning, 3 Average, 4 High, 5 Disaster
@@ -100,7 +101,8 @@ def _merge(base, extra):
     return base
 
 
-def load(path):
+def read(path):
+    """config.toml over the defaults: the settings as the file gives them."""
     cfg = copy.deepcopy(DEFAULTS)
     path = Path(path).expanduser()
     if path.exists():
@@ -108,4 +110,13 @@ def load(path):
             _merge(cfg, tomllib.load(f))
     cfg["app"]["state_dir"] = Path(cfg["app"]["state_dir"]).expanduser()
     cfg["app"]["state_dir"].mkdir(parents=True, exist_ok=True)
+    return cfg
+
+
+def load(path):
+    """The settings in use: config.toml, then whatever was changed from the
+    screen or the settings page (settings.json in the state directory)."""
+    from . import settings
+    cfg = read(path)
+    settings.overlay(cfg, settings.stored(cfg["app"]["state_dir"]))
     return cfg

@@ -145,10 +145,10 @@ class Plex:
         for m in data.get("MediaContainer", {}).get("Metadata", []) or []:
             title = m.get("title", "")
             if m.get("type") == "episode":
-                title = f"{m.get('grandparentTitle', '')} · S{int(m.get('parentIndex') or 0):02d}" \
-                        f"E{int(m.get('index') or 0):02d} · {title}"
+                title = f"{m.get('grandparentTitle', '')} \u00b7 S{int(m.get('parentIndex') or 0):02d}" \
+                        f"E{int(m.get('index') or 0):02d} \u00b7 {title}"
             elif m.get("type") == "track":
-                title = f"{m.get('grandparentTitle', '')} · {title}"
+                title = f"{m.get('grandparentTitle', '')} \u00b7 {title}"
             duration = float(m.get("duration") or 0)
             streams.append({
                 "title": title, "user": (m.get("User") or {}).get("title", ""),

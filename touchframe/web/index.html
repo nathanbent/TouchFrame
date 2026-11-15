@@ -4,11 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>TouchFrame</title>
+<link rel="preload" href="fonts/Karla-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Rubik-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
-<main>
-  <section id="home" class="view active">
+<main id="pager">
+  <section id="home" class="view active" data-tab="home">
     <div class="top">
       <div class="clock">
         <div class="time"><span id="time">--:--</span><span id="ampm"></span></div>
@@ -16,58 +19,66 @@
       </div>
       <div class="now" id="now"></div>
     </div>
-    <div class="hours" id="hours"></div>
+    <div class="hours card hscroll" id="hours"></div>
     <div class="bottom">
-      <div class="days" id="days"></div>
-      <div class="next" id="next"></div>
+      <div class="days card hscroll" id="days"></div>
+      <button class="next card" id="next"></button>
     </div>
   </section>
 
-  <section id="calendar" class="view">
-    <div class="month" id="month"></div>
-    <div class="agenda" id="agenda"></div>
+  <section id="calendar" class="view" data-tab="calendar">
+    <div class="month card" id="month" data-swipe="month"></div>
+    <div class="agenda card">
+      <div class="agenda-head" id="agenda-head"></div>
+      <div class="agenda-list scroll" id="agenda"></div>
+    </div>
   </section>
 
-  <section id="alerts" class="view">
+  <section id="alerts" class="view" data-tab="alerts">
     <div class="al-head" id="al-sources"></div>
-    <div class="al-list" id="al-list"></div>
+    <div class="al-list scroll" id="al-list"></div>
   </section>
 
-  <section id="lab" class="view">
-    <div class="lab-switch" id="lab-switch" hidden>
-      <button data-lab="tiles" class="active">Overview</button>
-      <button data-lab="problems">Problems</button>
-    </div>
-    <div class="lab-tiles" id="lab-tiles"></div>
-    <div class="lab-problems" id="lab-problems" hidden>
+  <section id="lab" class="view" data-tab="lab">
+    <div class="switch card" data-lab="lab" hidden></div>
+    <div class="lab-tiles scroll" id="lab-tiles"></div>
+  </section>
+
+  <section id="problems" class="view" data-tab="lab">
+    <div class="switch card" data-lab="problems" hidden></div>
+    <div class="lab-problems">
       <div class="lab-col" id="lab-prom" hidden>
         <div class="lab-head" id="lab-prom-head"></div>
-        <div class="lab-list" id="lab-prom-list"></div>
+        <div class="lab-list scroll" id="lab-prom-list"></div>
       </div>
       <div class="lab-col wide" id="lab-zbx" hidden>
         <div class="lab-head" id="lab-zbx-head"></div>
-        <div class="lab-list" id="lab-zbx-list"></div>
+        <div class="lab-list scroll" id="lab-zbx-list"></div>
       </div>
     </div>
   </section>
 
-  <section id="intercom" class="view">
+  <section id="intercom" class="view" data-tab="intercom">
     <div class="ic-head">
       <div class="ic-status" id="ic-status"></div>
-      <button class="stop-all" id="stop-all" hidden>■ All stop</button>
+      <button class="btn stop" id="stop-all" hidden></button>
     </div>
-    <div class="ic-groups" id="ic-groups"></div>
+    <div class="ic-groups scroll" id="ic-groups"></div>
+  </section>
+
+  <section id="settings" class="view" data-tab="settings">
+    <div class="set-rail" id="set-rail"></div>
+    <div class="set-body scroll" id="set-body"></div>
   </section>
 </main>
 
 <nav>
-  <button data-view="home" class="active">Home</button>
-  <button data-view="calendar">Calendar</button>
-  <button data-view="alerts" id="tab-alerts" hidden>Alerts<span class="badge" id="badge" hidden></span></button>
-  <button data-view="lab" id="tab-lab" hidden>Lab<span class="badge" id="lab-badge" hidden></span></button>
-  <button data-view="intercom" id="tab-intercom" hidden>Intercom</button>
-  <div class="playing" id="playing" hidden></div>
-  <div class="status" id="status"></div>
+  <div id="tabs" style="display: contents"></div>
+  <div class="nav-side">
+    <div class="playing" id="playing" hidden></div>
+    <div class="status" id="status"></div>
+  </div>
+  <button class="tab only-icon" id="tab-settings" data-tab="settings" aria-label="Settings" hidden></button>
 </nav>
 
 <div class="saver" id="saver" hidden>
@@ -85,17 +96,9 @@
   <div class="page-hint" id="page-hint"></div>
 </div>
 
-<div class="confirm" id="confirm" hidden>
-  <div class="confirm-box">
-    <div class="confirm-text" id="confirm-text"></div>
-    <div class="confirm-buttons">
-      <button id="confirm-no">Cancel</button>
-      <button id="confirm-yes" class="danger">Play</button>
-    </div>
-  </div>
-</div>
-
+<div class="dialog" id="dialog" hidden></div>
 <div class="toast" id="toast" hidden></div>
+<div class="wait" id="wait" hidden>Restarting to apply the change...</div>
 <script src="app.js"></script>
 </body>
 </html>

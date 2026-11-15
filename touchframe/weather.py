@@ -53,7 +53,7 @@ class Weather:
             "temperature_unit": "celsius" if self.metric else "fahrenheit",
             "wind_speed_unit": "kmh" if self.metric else "mph",
             "timezone": "auto",
-            "forecast_days": 6,
+            "forecast_days": 8,
         }
         with urllib.request.urlopen(API + "?" + urllib.parse.urlencode(params), timeout=30) as resp:
             return json.load(resp)
