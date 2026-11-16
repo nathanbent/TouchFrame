@@ -1125,8 +1125,10 @@ document.addEventListener("keydown", e => {
     if (pan) rest(pan);
     pan = null;
     if (e.pointerType !== "mouse" || e.button !== 0 || e.target.closest("input")) return;
-    if (!e.target.closest(".scroll, .hscroll")) return;
-    pan = { id: e.pointerId, target: e.target, x: e.clientX, y: e.clientY, el: null, side: false, from: 0, last: 0, lastT: 0, v: 0 };
+    // Found now: by the time the finger has moved, a redraw may have replaced what it pressed.
+    const down = e.target.closest(".scroll"), across = e.target.closest(".hscroll");
+    if (!down && !across) return;
+    pan = { id: e.pointerId, down, across, x: e.clientX, y: e.clientY, el: null, side: false, from: 0, last: 0, lastT: 0, v: 0 };
   }, true);
 
   document.addEventListener("pointermove", e => {
@@ -1137,7 +1139,7 @@ document.addEventListener("keydown", e => {
       // The same rule as the page swipe above, so the two never both take a drag.
       const side = !(Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx));
       if (side && Math.abs(dx) < 10) return;
-      const el = pan.target.closest(side ? ".hscroll" : ".scroll");
+      const el = side ? pan.across : pan.down;
       if (!el) { pan = null; return; }
       Object.assign(pan, { el, side, x: e.clientX, y: e.clientY, last: side ? e.clientX : e.clientY, lastT: e.timeStamp });
       pan.from = at(pan);
@@ -1175,6 +1177,9 @@ document.addEventListener("keydown", e => {
   };
   document.addEventListener("pointerup", done, true);
   document.addEventListener("pointercancel", done, true);
+  // Nothing here is for dragging off the page, and a drag the browser starts
+  // (on selected text, say) takes the pointer away for good.
+  document.addEventListener("dragstart", e => e.preventDefault());
 }
 
 $("stop-all").append(ico("stop", "solid small"), "All stop");
@@ -1182,8 +1187,9 @@ $("stop-all").addEventListener("click", () => post("/api/intercom/stop").catch(e
 
 // Back to the first tab when nobody has touched the screen for a while; and
 // a touch brightens a dimmed screen.
-let idleTimer = null, lastWake = 0;
-function touched() {
+let idleTimer = null, lastWake = 0, lastPointer = "";
+function touched(e) {
+  if (e && e.pointerType) lastPointer = e.pointerType;
   clearTimeout(idleTimer);
   if ($("saver").hidden) armSaver();
   if (settings.idle_home_seconds > 0) {
@@ -1318,7 +1324,7 @@ function drawSettings() {
       s.alerts && row("Send a test alert", "Takes over the screen for a few seconds", h("button", { class: "btn", onclick: () => post("/api/alerts/test").catch(e => toast(e.message)) }, "Send")),
       row("Restart TouchFrame", "Takes a few seconds", h("button", { class: "btn", onclick: restart }, "Restart")),
       row("Reload this page", "", h("button", { class: "btn", onclick: () => location.reload() }, "Reload"))),
-      h("div", { class: "set-info" }, [s.hostname, s.address, s.version && `version ${s.version}`].filter(Boolean).join(DOT))]],
+      h("div", { class: "set-info" }, [s.hostname, s.address, s.version && `version ${s.version}`, lastPointer && `input: ${lastPointer}`].filter(Boolean).join(DOT))]],
   ];
 
   put(body, sections.map(([name, el]) => [h("h1", {}, name), el]));
